@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 
 class KipaskipasCacheTest {
     public void setupConnection() {
-        KipaskipasCacheSetup.setup("mabes132@localhost:6379");
+        KipaskipasCacheSetup.setup("localhost", 6379, "", "");
     }
 
     @Test
