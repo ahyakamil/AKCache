@@ -2,6 +2,7 @@ package com.kipaskipas.cache.config;
 
 import com.kipaskipas.cache.KipaskipasCacheSetup;
 import com.kipaskipas.cache.annotation.KipaskipasCache;
+import com.kipaskipas.cache.constant.UpdateType;
 import com.kipaskipas.cache.utils.SerializeUtils;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -30,8 +31,8 @@ public class AspectConfig {
         }
         String key = pjp.getTarget().getClass().getName() + "::" + method.getName() + "::" + paramsKey;
         logger.debug("before method: " + key);
-        String keyAnnotation = method.getAnnotation(KipaskipasCache.class).key();
-        logger.debug("key annotation: " + keyAnnotation);
+        UpdateType updateType = method.getAnnotation(KipaskipasCache.class).updateType();
+        logger.debug("update type: " + updateType);
         Object procced = pjp.proceed();
         logger.debug("return value: " + procced);
 

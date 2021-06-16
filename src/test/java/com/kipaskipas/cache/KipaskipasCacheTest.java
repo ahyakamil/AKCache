@@ -13,6 +13,7 @@ class KipaskipasCacheTest {
         setupConnection();
         Sample sample = new Sample();
         String hello = sample.sampleCache("mantap");
-        sample.sampleCache();
+        System.out.println("ini adalah " + hello);
+        System.out.println("ini dari sebelah " + sample.sampleCache());
     }
 }
