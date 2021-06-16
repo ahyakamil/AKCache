@@ -27,11 +27,11 @@ public class AspectConfig {
             paramsKey += parameter.getName() + "(" + args[argIndex] + ")" + "_";
         }
         String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":" + paramsKey;
-        logger.info("before method: " + key);
+        logger.debug("before method: " + key);
         String keyAnnotation = method.getAnnotation(KipaskipasCache.class).key();
-        logger.info("key annotation: " + keyAnnotation);
+        logger.debug("key annotation: " + keyAnnotation);
         Object procced = pjp.proceed();
-        logger.info("return value: " + procced);
+        logger.debug("return value: " + procced);
         return procced;
     }
 }
