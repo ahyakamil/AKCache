@@ -12,9 +12,12 @@ public class Sample {
     Logger logger = LoggerFactory.getLogger(this.getClass());
 
     @KipaskipasCache(updateType = UpdateType.SMART)
-    public String sampleCache(String paramText) {
+    public SampleDto sampleCache(String paramText) {
+        SampleDto result = new SampleDto();
         logger.debug("hello I'm executed");
-        return "hello from sample cache " + paramText + " " + LocalDateTime.now().toEpochSecond(ZoneOffset.UTC);
+        result.setObj1("I'm obj 1");
+        result.setObj2("I'm obj 2");
+        return result;
     }
 
     @KipaskipasCache(updateType = UpdateType.FETCH)

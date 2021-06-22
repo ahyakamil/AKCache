@@ -1,6 +1,7 @@
 package com.kipaskipas.cache;
 
 import com.kipaskipas.cache.sample.Sample;
+import com.kipaskipas.cache.sample.SampleDto;
 import org.junit.jupiter.api.Test;
 
 class KipaskipasCacheTest {
@@ -12,8 +13,7 @@ class KipaskipasCacheTest {
     public void testAnnotation() {
         setupConnection();
         Sample sample = new Sample();
-        String hello = sample.sampleCache("mantap");
-        System.out.println("ini adalah " + hello);
-        System.out.println("ini dari sebelah " + sample.sampleCache());
+        sample.sampleCache("mantap");
+        sample.sampleCache();
     }
 }
