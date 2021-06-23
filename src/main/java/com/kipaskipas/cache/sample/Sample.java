@@ -20,7 +20,7 @@ public class Sample {
         return result;
     }
 
-    @KipaskipasCache(updateType = UpdateType.FETCH)
+    @KipaskipasCache(updateType = UpdateType.IMMEDIATELY)
     public String sampleCache() {
         logger.debug("hello I'm executed");
         return "hello from okesip";
