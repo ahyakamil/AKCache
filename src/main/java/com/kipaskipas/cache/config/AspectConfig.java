@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Set;
 
 @Aspect
 public class AspectConfig {
@@ -30,28 +31,31 @@ public class AspectConfig {
             paramsKey += parameter.getType().getName() + "_";
             paramsKey += parameter.getName() + "(" + args[argIndex] + ")" + "__";
         }
-        String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":args:" + paramsKey + ":return:";
-        logger.debug("before method: " + key);
         UpdateType updateType = method.getAnnotation(KipaskipasCache.class).updateType();
-        logger.debug("update type: " + updateType);
-        Object procced = pjp.proceed();
-        logger.debug("return value: " + procced);
+        String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":updateType_" + updateType + ":args_" + paramsKey;
 
-        if(procced.getClass().isAssignableFrom(String.class)) {
-            key += "str_" + procced + "__";
+        String findKey = key + "*";
+        Set<String> keys = KipaskipasCacheSetup.JEDIS.keys(findKey);
+        byte[] bytes = KipaskipasCacheSetup.JEDIS.hget(keys.iterator().next().getBytes(), "objValue".getBytes());
+        if(bytes != null) {
+            logger.debug("key exist, get from cache");
+            return SerializeUtils.deSerialize(bytes);
         } else {
-            for(Field field: procced.getClass().getDeclaredFields()) {
-                String fieldName = field.getName();
-                field.setAccessible(true);
-                Object fieldValue = field.get(procced);
-                key += fieldName + "_" + fieldValue + "__";
+            Object procced = pjp.proceed();
+            key += ":return_";
+            if(procced.getClass().isAssignableFrom(String.class)) {
+                key += "str_" + procced + "__";
+            } else {
+                for(Field field: procced.getClass().getDeclaredFields()) {
+                    String fieldName = field.getName();
+                    field.setAccessible(true);
+                    Object fieldValue = field.get(procced);
+                    key += fieldName + "_" + fieldValue + "__";
+                }
             }
+
+            KipaskipasCacheSetup.JEDIS.hset(key.getBytes(), "objValue".getBytes(), SerializeUtils.serialize(procced));
+            return procced;
         }
-
-        KipaskipasCacheSetup.JEDIS.hset(key.getBytes(), "objValue".getBytes(), SerializeUtils.serialize(procced));
-
-        byte[] deserialize = KipaskipasCacheSetup.JEDIS.hget(key.getBytes(), "objValue".getBytes());
-        logger.debug("successfully deserialize obj: " + SerializeUtils.deSerialize(deserialize));
-        return procced;
     }
 }
