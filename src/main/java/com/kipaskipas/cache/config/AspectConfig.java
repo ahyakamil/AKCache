@@ -30,18 +30,22 @@ public class AspectConfig {
             paramsKey += parameter.getType().getName() + "_";
             paramsKey += parameter.getName() + "(" + args[argIndex] + ")" + "__";
         }
-        String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":args:" + paramsKey + ":result:";
+        String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":args:" + paramsKey + ":return:";
         logger.debug("before method: " + key);
         UpdateType updateType = method.getAnnotation(KipaskipasCache.class).updateType();
         logger.debug("update type: " + updateType);
         Object procced = pjp.proceed();
         logger.debug("return value: " + procced);
 
-        for(Field field: procced.getClass().getDeclaredFields()) {
-            String fieldName = field.getName();
-            field.setAccessible(true);
-            Object fieldValue = field.get(procced);
-            key += fieldName + "_" + fieldValue + "__";
+        if(procced.getClass().isAssignableFrom(String.class)) {
+            key += "str_" + procced + "__";
+        } else {
+            for(Field field: procced.getClass().getDeclaredFields()) {
+                String fieldName = field.getName();
+                field.setAccessible(true);
+                Object fieldValue = field.get(procced);
+                key += fieldName + "_" + fieldValue + "__";
+            }
         }
 
         KipaskipasCacheSetup.JEDIS.hset(key.getBytes(), "objValue".getBytes(), SerializeUtils.serialize(procced));
