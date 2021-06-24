@@ -34,7 +34,7 @@ public class AspectConfig {
         UpdateType updateType = method.getAnnotation(KipaskipasCache.class).updateType();
         String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":updateType_" + updateType + ":args_" + paramsKey;
 
-        String findKey = key + "*";
+        String findKey = key + ":*";
         Set<String> keys = KipaskipasCacheSetup.JEDIS.keys(findKey);
         byte[] bytes = KipaskipasCacheSetup.JEDIS.hget(keys.iterator().next().getBytes(), "objValue".getBytes());
         if(bytes != null) {
