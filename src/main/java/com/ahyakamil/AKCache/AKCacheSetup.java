@@ -46,8 +46,10 @@ public class AKCacheSetup {
         logger.debug("key to find: " + keyPattern);
         Set<String> keys = JEDIS.keys(keyPattern);
         if (keys.size() > 0) {
-            byte[] bytes = JEDIS.hget(keys.iterator().next().getBytes(), "objValue".getBytes());
+            byte[] foundedKey = keys.iterator().next().getBytes();
+            byte[] bytes = JEDIS.hget(foundedKey, "objValue".getBytes());
             logger.debug("key exist, get from cache");
+            logger.debug("key ttl: " + JEDIS.ttl(foundedKey));
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             Object deSerialize = objectMapper.readValue(bytes, returnedClass);
             return deSerialize;
