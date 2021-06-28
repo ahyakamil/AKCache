@@ -4,13 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.kipaskipas.cache</groupId>
-    <artifactId>kipaskipas-cache</artifactId>
+    <groupId>com.ahyakamil.AKCache</groupId>
+    <artifactId>AKCache</artifactId>
     <version>1.0.0</version>
 
-    <name>Kipaskipas cache</name>
+    <name>AKCache</name>
     <description>This project is used for cache API easily</description>
-    <url>http://kipaskipas.com</url>
+    <url>https://github.com/ahyakamil/AKCache</url>
 
     <licenses>
         <license>
@@ -20,7 +20,7 @@
     </licenses>
 
     <scm>
-        <url>http://github.com/kipaskipas</url>
+        <url>https://github.com/ahyakamil/AKCache</url>
     </scm>
 
     <dependencies>

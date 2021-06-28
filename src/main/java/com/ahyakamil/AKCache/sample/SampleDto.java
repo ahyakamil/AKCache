@@ -1,4 +1,4 @@
-package com.kipaskipas.cache.sample;
+package com.ahyakamil.AKCache.sample;
 
 import java.io.Serializable;
 

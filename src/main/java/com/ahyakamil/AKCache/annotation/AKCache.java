@@ -1,6 +1,6 @@
-package com.kipaskipas.cache.annotation;
+package com.ahyakamil.AKCache.annotation;
 
-import com.kipaskipas.cache.constant.UpdateType;
+import com.ahyakamil.AKCache.constant.UpdateType;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -9,6 +9,7 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-public @interface KipaskipasCache {
+public @interface AKCache {
     UpdateType updateType() default UpdateType.SMART;
+    Class serializeClass() default Object.class;
 }

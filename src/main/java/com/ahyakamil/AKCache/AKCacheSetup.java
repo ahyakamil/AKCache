@@ -1,11 +1,9 @@
-package com.kipaskipas.cache;
+package com.ahyakamil.AKCache;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.ahyakamil.AKCache.constant.UpdateType;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.kipaskipas.cache.annotation.KipaskipasCache;
-import com.kipaskipas.cache.constant.UpdateType;
-import com.kipaskipas.cache.utils.SerializeUtils;
+import com.ahyakamil.AKCache.annotation.AKCache;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
@@ -13,16 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
-import java.io.IOException;
-import java.io.NotSerializableException;
 import java.io.Serializable;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Set;
 
-public class KipaskipasCacheSetup<T> {
-    private static Logger logger = LoggerFactory.getLogger(KipaskipasCacheSetup.class);
+public class AKCacheSetup {
+    private static Logger logger = LoggerFactory.getLogger(AKCacheSetup.class);
     private static Jedis JEDIS;
 
     public static void setupConnection(String host, int port, String username, String password) {
@@ -35,7 +30,7 @@ public class KipaskipasCacheSetup<T> {
         logger.info("Successfully connect to redis...");
     }
 
-    public T setListener(ProceedingJoinPoint pjp, Class<T> returnedClass) throws Throwable {
+    private static Object setListener(ProceedingJoinPoint pjp, Class returnedClass) throws Throwable {
         MethodSignature signature = (MethodSignature) pjp.getSignature();
         Method method = signature.getMethod();
         String paramsKey = "";
@@ -45,7 +40,7 @@ public class KipaskipasCacheSetup<T> {
             paramsKey += parameter.getType().getName() + "_";
             paramsKey += parameter.getName() + "(" + args[argIndex] + ")" + "__";
         }
-        UpdateType updateType = method.getAnnotation(KipaskipasCache.class).updateType();
+        UpdateType updateType = method.getAnnotation(AKCache.class).updateType();
         String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":updateType_" + updateType + ":args_" + paramsKey;
 
         String findKey = key;
@@ -57,19 +52,26 @@ public class KipaskipasCacheSetup<T> {
             logger.debug("key exist, get from cache");
             ObjectMapper objectMapper = new ObjectMapper();
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            T deSerialize = objectMapper.readValue(bytes, returnedClass);
+            Object deSerialize = objectMapper.readValue(bytes, returnedClass);
             return deSerialize;
         } else {
-            T procced = (T) pjp.proceed();
+            Object procced = pjp.proceed();
             ObjectMapper objectMapper = new ObjectMapper();
             key += ":return_" + objectMapper.writeValueAsString(procced);
 
             logger.debug("serializing obj...");
             logger.debug("key bytes : " + key.getBytes());
-            ForceObjToSerialize<T> forceObjToSerialize = new ForceObjToSerialize(procced);
+            ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(procced);
             JEDIS.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
             return procced;
         }
+    }
+
+    public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
+        MethodSignature signature = (MethodSignature) pjp.getSignature();
+        Method method = signature.getMethod();
+        Class returnedClass = method.getAnnotation(AKCache.class).serializeClass();
+        return setListener(pjp, returnedClass);
     }
 
     public static String escapeMetaCharacters(String inputString){
