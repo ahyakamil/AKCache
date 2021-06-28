@@ -31,17 +31,15 @@ public class AKCacheSetup {
     }
 
     private static Object setListener(ProceedingJoinPoint pjp, Class returnedClass) throws Throwable {
+        ObjectMapper objectMapper = new ObjectMapper();
         MethodSignature signature = (MethodSignature) pjp.getSignature();
         Method method = signature.getMethod();
         String paramsKey = "";
         Object[] args = pjp.getArgs();
-        for (int argIndex = 0; argIndex < args.length; argIndex++) {
-            Parameter parameter = method.getParameters()[argIndex];
-            paramsKey += parameter.getType().getName() + "_";
-            paramsKey += parameter.getName() + "(" + args[argIndex] + ")" + "__";
-        }
+        paramsKey += objectMapper.writeValueAsString(args);
         UpdateType updateType = method.getAnnotation(AKCache.class).updateType();
         String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":updateType_" + updateType + ":args_" + paramsKey;
+        int ttl = method.getAnnotation(AKCache.class).ttl();
 
         String findKey = key;
         String keyPattern = escapeMetaCharacters(findKey) + ":*";
@@ -50,19 +48,18 @@ public class AKCacheSetup {
         if (keys.size() > 0) {
             byte[] bytes = JEDIS.hget(keys.iterator().next().getBytes(), "objValue".getBytes());
             logger.debug("key exist, get from cache");
-            ObjectMapper objectMapper = new ObjectMapper();
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             Object deSerialize = objectMapper.readValue(bytes, returnedClass);
             return deSerialize;
         } else {
             Object procced = pjp.proceed();
-            ObjectMapper objectMapper = new ObjectMapper();
             key += ":return_" + objectMapper.writeValueAsString(procced);
 
             logger.debug("serializing obj...");
             logger.debug("key bytes : " + key.getBytes());
             ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(procced);
             JEDIS.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
+            JEDIS.expire(key.getBytes(), ttl);
             return procced;
         }
     }
