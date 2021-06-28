@@ -5,9 +5,6 @@ import com.kipaskipas.cache.constant.UpdateType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-
 public class Sample {
     Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -20,7 +17,7 @@ public class Sample {
         return result;
     }
 
-    @KipaskipasCache(updateType = UpdateType.IMMEDIATELY)
+    @KipaskipasCache(updateType = UpdateType.FETCH)
     public String sampleCache() {
         logger.debug("hello I'm executed");
         return "hello from okesip";
