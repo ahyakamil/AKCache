@@ -28,4 +28,13 @@ Create configuration class
             return AKCacheSetup.setListener(pjp);
         }
     }
-    
+
+### Default value
+1. updateType: SMART
+2. serializeClass: Object.class
+3. ttl: 1 hours
+
+
+### To using cache, follow the given sample case:
+#### Case 1
+We want to si
