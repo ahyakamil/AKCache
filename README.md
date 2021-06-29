@@ -33,15 +33,15 @@ Create configuration class
 @AKCache
 1. updateType: SMART
 2. serializeClass: Object.class
-3. ttl: 1 hour
+3. ttl: 3 hour
 
 #### TLDR;
-- UpdateType SMART will run method again and update its values and ttl, if cache accessed more than 75% of ttl
-
+- UpdateType SMART : if cache accessed more than 75% of its ttl, it will execute real method then update its values and ttl
+- UpdateType FETCH : will return an existing cache to user then execute real method to update its value and ttl
 
 ### To using cache, follow the given example case:
 #### Case 1
-We want to cache with ttl 1 hour
+We want to cache with ttl 3 hour
 
     @AKCache
     public String example() {

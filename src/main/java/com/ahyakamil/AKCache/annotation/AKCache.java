@@ -12,5 +12,5 @@ import java.lang.annotation.Target;
 public @interface AKCache {
     UpdateType updateType() default UpdateType.SMART;
     Class serializeClass() default Object.class;
-    int ttl() default 3600;
+    int ttl() default 10800;
 }
