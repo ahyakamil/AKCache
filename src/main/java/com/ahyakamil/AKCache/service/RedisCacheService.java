@@ -67,6 +67,7 @@ public class RedisCacheService {
             logger.debug("key exist, get from cache");
             if(isTimeToRenewCache(ttl, JEDIS.ttl(foundedKey))) {
                 logger.debug("it's time to renew cache...");
+                renewCache(pjp, key, ttl);
             }
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             Object deSerialize = objectMapper.readValue(bytes, returnedClass);
@@ -74,6 +75,18 @@ public class RedisCacheService {
         } else {
             return createCache(pjp, key, ttl);
         }
+    }
+
+    private static void renewCache(ProceedingJoinPoint pjp, String key, int ttl) {
+        JEDIS.del(key.getBytes());
+        Thread thread = new Thread(() -> {
+            try {
+                createCache(pjp, key, ttl);
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
+            }
+        });
+        thread.start();
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
