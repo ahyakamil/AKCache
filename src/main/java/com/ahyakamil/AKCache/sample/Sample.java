@@ -14,8 +14,8 @@ public class Sample {
     }
 
     @AKCache(ttl = 180)
-    public String case2() {
+    public String case2(String quote) {
         logger.info("I'm in method..");
-        return "What a beautiful day!";
+        return quote;
     }
 }

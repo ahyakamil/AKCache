@@ -28,6 +28,7 @@ public class RedisCacheService {
     private static byte[] foundedKeyStatic;
     private static int ttlStatic;
     private static String keyStatic;
+    private static UpdateType updateTypeStatic;
 
     public static void setupConnection(String host, int port, String username, String password) {
         JEDIS = new Jedis(host, port);
@@ -73,6 +74,7 @@ public class RedisCacheService {
             ttlStatic = ttl;
             keyStatic = key;
             foundedKeyStatic = foundedKey;
+            updateTypeStatic = updateType;
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             Object deSerialize = objectMapper.readValue(bytes, returnedClass);
             return deSerialize;
@@ -83,12 +85,20 @@ public class RedisCacheService {
 
     public static void renewCache() throws Throwable {
         if(foundedKeyStatic != null) {
-            if(isTimeToRenewCache(ttlStatic, JEDIS.ttl(foundedKeyStatic))) {
-                JEDIS.del(foundedKeyStatic);
-                logger.debug("it's time to renew cache...");
-                createCache(pjpStatic, keyStatic, ttlStatic);
+            if(updateTypeStatic.equals(UpdateType.FETCH)) {
+                doRenewCache();
+            } else if(updateTypeStatic.equals(UpdateType.SMART)) {
+                if(isTimeToRenewCache(ttlStatic, JEDIS.ttl(foundedKeyStatic))) {
+                    doRenewCache();
+                }
             }
         }
+    }
+
+    private static void doRenewCache() throws Throwable {
+        JEDIS.del(foundedKeyStatic);
+        logger.debug("it's time to renew cache...");
+        createCache(pjpStatic, keyStatic, ttlStatic);
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
