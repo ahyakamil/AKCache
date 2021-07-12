@@ -24,6 +24,10 @@ import static com.ahyakamil.AKCache.util.AKUtils.escapeMetaCharacters;
 public class RedisCacheService {
     private static Logger logger = LoggerFactory.getLogger(AKCacheSetup.class);
     private static Jedis JEDIS;
+    private static ProceedingJoinPoint pjpStatic;
+    private static byte[] foundedKeyStatic;
+    private static int ttlStatic;
+    private static String keyStatic;
 
     public static void setupConnection(String host, int port, String username, String password) {
         JEDIS = new Jedis(host, port);
@@ -65,10 +69,10 @@ public class RedisCacheService {
             byte[] foundedKey = keys.iterator().next().getBytes();
             byte[] bytes = JEDIS.hget(foundedKey, "objValue".getBytes());
             logger.debug("key exist, get from cache");
-            if(isTimeToRenewCache(ttl, JEDIS.ttl(foundedKey))) {
-                logger.debug("it's time to renew cache...");
-                renewCache(pjp, key, ttl);
-            }
+            pjpStatic = pjp;
+            ttlStatic = ttl;
+            keyStatic = key;
+            foundedKeyStatic = foundedKey;
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             Object deSerialize = objectMapper.readValue(bytes, returnedClass);
             return deSerialize;
@@ -77,16 +81,14 @@ public class RedisCacheService {
         }
     }
 
-    private static void renewCache(ProceedingJoinPoint pjp, String key, int ttl) {
-        JEDIS.del(key.getBytes());
-        Thread thread = new Thread(() -> {
-            try {
-                createCache(pjp, key, ttl);
-            } catch (Throwable throwable) {
-                throwable.printStackTrace();
+    public static void renewCache() throws Throwable {
+        if(foundedKeyStatic != null) {
+            if(isTimeToRenewCache(ttlStatic, JEDIS.ttl(foundedKeyStatic))) {
+                JEDIS.del(foundedKeyStatic);
+                logger.debug("it's time to renew cache...");
+                createCache(pjpStatic, keyStatic, ttlStatic);
             }
-        });
-        thread.start();
+        }
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
