@@ -13,4 +13,5 @@ public @interface AKCache {
     UpdateType updateType() default UpdateType.SMART;
     Class serializeClass() default Object.class;
     int ttl() default 10800;
+    String conditionRegex() default ".*";
 }

@@ -5,7 +5,6 @@ import com.ahyakamil.AKCache.annotation.AKCache;
 import com.ahyakamil.AKCache.annotation.AKCacheUpdate;
 import com.ahyakamil.AKCache.constant.AKConstants;
 import com.ahyakamil.AKCache.constant.UpdateType;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
@@ -14,10 +13,10 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
-
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.ahyakamil.AKCache.util.AKUtils.escapeMetaCharacters;
 
@@ -29,6 +28,7 @@ public class RedisCacheService {
     private static int ttlStatic;
     private static String keyStatic;
     private static UpdateType updateTypeStatic;
+    private static String conditionRegexStatic;
 
     public static void setupConnection(String host, int port, String username, String password) {
         JEDIS = new Jedis(host, port);
@@ -61,6 +61,7 @@ public class RedisCacheService {
         UpdateType updateType = method.getAnnotation(AKCache.class).updateType();
         String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":updateType_" + updateType + ":args_" + paramsKey;
         int ttl = method.getAnnotation(AKCache.class).ttl();
+        String conditionRegex = method.getAnnotation(AKCache.class).conditionRegex();
 
         String findKey = key;
         String keyPattern = escapeMetaCharacters(findKey) + ":*";
@@ -75,11 +76,12 @@ public class RedisCacheService {
             keyStatic = key;
             foundedKeyStatic = foundedKey;
             updateTypeStatic = updateType;
+            conditionRegexStatic = conditionRegex;
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             Object deSerialize = objectMapper.readValue(bytes, returnedClass);
             return deSerialize;
         } else {
-            return createCache(pjp, key, ttl);
+            return createCache(pjp, key, ttl, conditionRegex);
         }
     }
 
@@ -98,7 +100,7 @@ public class RedisCacheService {
     private static void doRenewCache() throws Throwable {
         JEDIS.del(foundedKeyStatic);
         logger.debug("it's time to renew cache...");
-        createCache(pjpStatic, keyStatic, ttlStatic);
+        createCache(pjpStatic, keyStatic, ttlStatic, conditionRegexStatic);
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
@@ -112,15 +114,20 @@ public class RedisCacheService {
         return false;
     }
 
-    private static Object createCache(ProceedingJoinPoint pjp, String key, int ttl) throws Throwable {
+    private static Object createCache(ProceedingJoinPoint pjp, String key, int ttl, String conditionRegex) throws Throwable {
         ObjectMapper objectMapper = new ObjectMapper();
         Object proceed = pjp.proceed();
         key += ":return_" + objectMapper.writeValueAsString(proceed);
-        logger.debug("serializing obj...");
-        logger.debug("key bytes : " + key.getBytes());
-        ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(proceed);
-        JEDIS.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
-        JEDIS.expire(key.getBytes(), ttl);
+        logger.debug("key : " + key);
+        Pattern pattern = Pattern.compile(conditionRegex);
+        Matcher matcher = pattern.matcher(key);
+        if(matcher.find()) {
+            logger.debug("serializing obj...");
+            logger.debug("key bytes : " + key.getBytes());
+            ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(proceed);
+            JEDIS.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
+            JEDIS.expire(key.getBytes(), ttl);
+        }
         return proceed;
     }
 }
