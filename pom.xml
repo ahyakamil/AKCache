@@ -4,12 +4,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.ahyakamil.AKCache</groupId>
-    <artifactId>AKCache</artifactId>
-    <version>1.0.0</version>
+    <groupId>com.ahyakamil.akcache</groupId>
+    <artifactId>akcache</artifactId>
+    <version>1.0.0-rc0</version>
 
-    <name>AKCache</name>
-    <description>This project is used for cache API easily</description>
+    <name>akcache</name>
+    <description>Simple and powerful caching</description>
     <url>https://github.com/ahyakamil/AKCache</url>
 
     <licenses>
