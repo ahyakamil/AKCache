@@ -52,10 +52,12 @@ Create configuration class, ex: AKCacheConfig.java
 1. updateType: SMART
 2. serializeClass: Object.class
 3. ttl: 3 hours
+4. conditionRegex: .*
 
 ### NOTES
 - UpdateType SMART : will return cache and if ttl is more than 75%, it will execute real method to update cache
 - UpdateType FETCH : will return cache and execute real method immediately to update cache
+- for debug you can add properties "logging.level.com.ahyakamil=DEBUG"
 
 ### Example
 
@@ -68,6 +70,21 @@ Create configuration class, ex: AKCacheConfig.java
 Since spring boot ResponseEntity doesn't have "no args constructor" which is used for serialization,
 we can use HttpEntity for serializing.
 
+	@AKCache(serializeClass = HttpEntity.class, conditionRegex = ".*\"statusCodeValue\":200")
+	@GetMapping("/hello")
+	public Object newEmployee() {
+		return ResponseEntity.ok("hello world");
+	}
+	
+cache if statusCodeValue 200
+
+    @AKCache(updateType = UpdateType.FETCH, serializeClass = HttpEntity.class)
+    @GetMapping("/hello")
+    public Object newEmployee() {
+        return ResponseEntity.ok(Math.random());
+    }
+    
+return cache if exist then update cache immediately
 
 **TODO**
 
