@@ -69,6 +69,7 @@ Create configuration class, ex: AKCacheConfig.java
 
 Since spring boot ResponseEntity doesn't have "no args constructor" which is used for serialization,
 we can use HttpEntity for serializing.
+
 ----
 
 	@AKCache(serializeClass = HttpEntity.class, conditionRegex = ".*\"statusCodeValue\":200")
