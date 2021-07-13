@@ -9,25 +9,43 @@ Add pom
     <dependency>
       <groupId>com.ahyakamil.AKCache</groupId>
       <artifactId>AKCache</artifactId>
-      <version>1.0.0</version>
     </dependency>
 
 
-Create configuration class
+Create configuration class, ex: AKCacheConfig.java
 
     @Aspect
     @Configuration
     public class AKCacheConfig {
+        @Autowired
+        AKService akService;
+    
         @Bean
         public void akCacheSetup() {
             AKCacheSetup.setupConnection("localhost", 6379, "", "");
         }
-
-        @Around("execution(* *(..)) && @annotation(com.ahyakamil.AKCache.annotation.AKCache)")
+    
+        @Around("execution(* *(..)) && @annotation(com.ahyakamil.AKCache.annotation.AKCache) || @annotation(com.ahyakamil.AKCache.annotation.AKCacheUpdate)")
         public Object setListener(ProceedingJoinPoint pjp) throws Throwable {
-            return AKCacheSetup.setListener(pjp);
+            Object result = AKCacheSetup.setListener(pjp);
+            akService.renewCache();
+            return result;
         }
     }
+    
+    @Service
+    class AKService {
+        @Async
+        @Transactional
+        public void renewCache() throws Throwable {
+            AKCacheSetup.renewCache();
+        }
+    }
+    
+**IMPORTANT**
+
+- Do renewCache() asynchronously for better experience
+- Transactional used for avoid lazy session exception hibernate
 
 ### Default value
 @AKCache
@@ -35,15 +53,30 @@ Create configuration class
 2. serializeClass: Object.class
 3. ttl: 3 hours
 
-#### TLDR;
-- UpdateType SMART : if cache accessed more than 75% of its ttl, it will execute real method then update its values and ttl
-- UpdateType FETCH : will return an existing cache to user then execute real method to update its value and ttl
+### NOTES
+- UpdateType SMART : will return cache and if ttl is more than 75%, it will execute real method to update cache
+- UpdateType FETCH : will return cache and execute real method immediately to update cache
 
-### To using cache, follow the given example case:
-#### Case 1
-We want to cache with ttl 3 hours
+### Example
 
-    @AKCache
-    public String example() {
-        return "What a beautiful day!"
-    }
+	@AKCache(serializeClass = HttpEntity.class)
+	@GetMapping("/hello")
+	public Object newEmployee() {
+		return ResponseEntity.ok("hello world");
+	}
+
+Since spring boot ResponseEntity doesn't have "no args constructor" which is used for serialization,
+we can use HttpEntity for serializing.
+
+
+**TODO**
+
+Will update for more feature, stay tuned..
+
+
+## License
+Licensed under [Apache 2.0 license](https://www.apache.org/licenses/LICENSE-2.0.html)
+
+## Buy Me A Chocolate
+[Buy Me A Chocolate](https://www.buymeacoffee.com/gbraad)
+
