@@ -78,5 +78,5 @@ Will update for more feature, stay tuned..
 Licensed under [Apache 2.0 license](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 ## Buy Me A Chocolate
-[Buy Me A Chocolate](https://www.buymeacoffee.com/gbraad)
+[Buy Me A Chocolate](https://www.paypal.com/paypalme/ahyaalkamil1)
 
