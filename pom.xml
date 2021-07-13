@@ -4,7 +4,7 @@
 
     <groupId>com.ahyakamil.akcache</groupId>
     <artifactId>akcache</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
 
     <name>akcache</name>
     <description>Simple and powerful caching</description>
