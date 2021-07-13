@@ -4,7 +4,7 @@
 
     <groupId>com.ahyakamil.akcache</groupId>
     <artifactId>akcache</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
 
     <name>akcache</name>
     <description>Simple and powerful caching</description>
@@ -21,7 +21,7 @@
         <connection>scm:git:git://github.com/ahyakamil/AKCache.git</connection>
         <developerConnection>scm:git:git@github.com:ahyakamil/ahyakamil.git</developerConnection>
         <url>https://github.com/ahyakamil/AKCache</url>
-      <tag>akcache-1.0.0</tag>
+      <tag>HEAD</tag>
   </scm>
 
     <distributionManagement>
