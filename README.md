@@ -7,7 +7,7 @@ In this example, we use spring boot but not limited to other java project
 Add pom
 
     <dependency>
-      <groupId>com.ahyakamil.AKCache</groupId>
+      <groupId>com.ahyakamil</groupId>
       <artifactId>AKCache</artifactId>
     </dependency>
 
