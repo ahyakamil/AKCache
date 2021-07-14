@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import java.lang.reflect.Method;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,7 +25,7 @@ public class RedisCacheService {
     private static Logger logger = LoggerFactory.getLogger(AKCacheSetup.class);
     private static Jedis JEDIS;
     private static ProceedingJoinPoint pjpStatic;
-    private static byte[] foundedKeyStatic;
+    private static Set<String> foundedKeysStatic = new HashSet<>();
     private static int ttlStatic;
     private static String keyStatic;
     private static UpdateType updateTypeStatic;
@@ -74,7 +75,7 @@ public class RedisCacheService {
             pjpStatic = pjp;
             ttlStatic = ttl;
             keyStatic = key;
-            foundedKeyStatic = foundedKey;
+            foundedKeysStatic = keys;
             updateTypeStatic = updateType;
             conditionRegexStatic = conditionRegex;
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -86,11 +87,11 @@ public class RedisCacheService {
     }
 
     public static void renewCache() throws Throwable {
-        if(foundedKeyStatic != null) {
+        if(foundedKeysStatic.size() > 0) {
             if(updateTypeStatic.equals(UpdateType.FETCH)) {
                 doRenewCache();
             } else if(updateTypeStatic.equals(UpdateType.SMART)) {
-                if(isTimeToRenewCache(ttlStatic, JEDIS.ttl(foundedKeyStatic))) {
+                if(isTimeToRenewCache(ttlStatic, JEDIS.ttl(foundedKeysStatic.iterator().next().getBytes()))) {
                     doRenewCache();
                 }
             }
@@ -98,7 +99,9 @@ public class RedisCacheService {
     }
 
     private static void doRenewCache() throws Throwable {
-        JEDIS.del(foundedKeyStatic);
+        for(String oldKey: foundedKeysStatic) {
+            JEDIS.del(oldKey);
+        }
         logger.debug("it's time to renew cache...");
         createCache(pjpStatic, keyStatic, ttlStatic, conditionRegexStatic);
     }
@@ -127,6 +130,7 @@ public class RedisCacheService {
             ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(proceed);
             JEDIS.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
             JEDIS.expire(key.getBytes(), ttl);
+            logger.debug("successfully create cache");
         }
         return proceed;
     }
