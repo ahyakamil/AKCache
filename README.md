@@ -2,7 +2,7 @@
 Simple and powerful caching
 
 ### How to use?
-In this example, we using spring boot
+In this example, we use spring boot but not limited to other java project
 
 Add pom
 
