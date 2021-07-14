@@ -1,5 +1,5 @@
 # AKCache
-Simple and powerful caching
+Simple and powerful caching using redis
 
 ### How to use?
 In this example, we use spring boot but not limited to other java project
