@@ -8,7 +8,7 @@ Add pom
 
     <dependency>
       <groupId>com.ahyakamil</groupId>
-      <artifactId>AKCache</artifactId>
+      <artifactId>akcache</artifactId>
     </dependency>
 
 
