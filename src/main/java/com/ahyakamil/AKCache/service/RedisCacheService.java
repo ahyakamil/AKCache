@@ -13,7 +13,11 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
+
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -30,15 +34,25 @@ public class RedisCacheService {
     private static String keyStatic;
     private static UpdateType updateTypeStatic;
     private static String conditionRegexStatic;
+    private static JedisPool JEDIS_POOL;
 
     public static void setupConnection(String host, int port, String username, String password) {
-        JEDIS = new Jedis(host, port);
+        JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
+        JEDIS_POOL = new JedisPool(jedisPoolConfig, host, port);
+        JEDIS = JEDIS_POOL.getResource();
         if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
             JEDIS.auth(password);
         } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
             JEDIS.auth(username, password);
         }
         logger.info("Successfully connect to redis...");
+    }
+
+    private static JedisPoolConfig jedisPoolConfig() {
+        final JedisPoolConfig poolConfig = new JedisPoolConfig();
+        poolConfig.setMaxTotal(300);
+        poolConfig.setMaxIdle(128);
+        return poolConfig;
     }
 
     public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
