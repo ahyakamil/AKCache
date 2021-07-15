@@ -35,23 +35,28 @@ public class RedisCacheService {
     private static String currentKeyStatic;
     private static String hostStatic;
     private static int portStatic;
+    private static String usernameStatic;
+    private static String passwordStatic;
+
 
     public static void setupConnection(String host, int port, String username, String password) {
         hostStatic = host;
         portStatic = port;
-
-        JEDIS = getJedis(host, port);
-        if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-            JEDIS.auth(password);
-        } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-            JEDIS.auth(username, password);
-        }
-        JEDIS.connect();
+        usernameStatic = username;
+        passwordStatic = password;
+        JEDIS = getJedis(host, port, username, password);
     }
 
-    private static Jedis getJedis(String host, int port) {
+    private static Jedis getJedis(String host, int port, String username, String password) {
         JedisPool jedisPool = new JedisPool(host, port);
-        return jedisPool.getResource();
+        Jedis jedis = jedisPool.getResource();
+        if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+            jedis.auth(password);
+        } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+            jedis.auth(username, password);
+        }
+        jedis.connect();
+        return jedis;
     }
 
     public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
@@ -100,7 +105,7 @@ public class RedisCacheService {
             }
         } catch (Exception e) {
             try {
-                JEDIS = getJedis(hostStatic, portStatic);
+                JEDIS = getJedis(hostStatic, portStatic, usernameStatic, passwordStatic);
             } catch (Exception eConn) {
                 logger.debug(eConn.getMessage());
                 return pjp.proceed();
