@@ -36,7 +36,7 @@ Create configuration class, ex: AKCacheConfig.java
     @Service
     class AKService {
         @Async
-        @Transactional
+        @Transactional // <-- Optional
         public void renewCache() throws Throwable {
             AKCacheSetup.renewCache();
         }
