@@ -13,11 +13,8 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
 
 import java.lang.reflect.Method;
-import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -34,35 +31,30 @@ public class RedisCacheService {
     private static String keyStatic;
     private static UpdateType updateTypeStatic;
     private static String conditionRegexStatic;
-    private static JedisPool JEDIS_POOL;
-
-    private static String hostStatic;
-    private static int portStatic;
-    private static String usernameStatic;
-    private static String passwordStatic;
+    private static String currentKeyStatic;
 
     public static void setupConnection(String host, int port, String username, String password) {
-        hostStatic = host;
-        portStatic = port;
-        usernameStatic = username;
-        passwordStatic = password;
-
-        JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
-        JEDIS_POOL = new JedisPool(jedisPoolConfig, host, port);
-        JEDIS = JEDIS_POOL.getResource();
-        if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-            JEDIS.auth(password);
-        } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-            JEDIS.auth(username, password);
+        try {
+            JEDIS = new Jedis(host, port);
+            if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+                JEDIS.auth(password);
+            } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+                JEDIS.auth(username, password);
+            }
+            JEDIS.connect();
+            logger.info("Successfully connect to redis...");
+        } catch (Exception e) {
+            JEDIS = null;
+            new Thread(() -> {
+                logger.info("failed connect to redis, retry in 10s...");
+                try {
+                    Thread.sleep(10000);
+                    setupConnection(host, port, username, password);
+                } catch (Exception eSleep) {
+                    logger.debug(eSleep.getMessage());
+                }
+            }).start();
         }
-        logger.info("Successfully connect to redis...");
-    }
-
-    private static JedisPoolConfig jedisPoolConfig() {
-        final JedisPoolConfig poolConfig = new JedisPoolConfig();
-        poolConfig.setMaxTotal(300);
-        poolConfig.setMaxIdle(128);
-        return poolConfig;
     }
 
     public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
@@ -79,7 +71,10 @@ public class RedisCacheService {
     }
 
     private static Object getData(ProceedingJoinPoint pjp, Method method, Class returnedClass) throws Throwable {
-        setupConnection(hostStatic, portStatic, usernameStatic, passwordStatic);
+        if(JEDIS == null) {
+            return pjp.proceed();
+        }
+
         ObjectMapper objectMapper = new ObjectMapper();
         String paramsKey = "";
         Object[] args = pjp.getArgs();
@@ -112,24 +107,31 @@ public class RedisCacheService {
     }
 
     public static void renewCache() throws Throwable {
-        setupConnection(hostStatic, portStatic, usernameStatic, passwordStatic);
-        if(foundedKeysStatic.size() > 0) {
-            if(updateTypeStatic.equals(UpdateType.FETCH)) {
-                doRenewCache();
-            } else if(updateTypeStatic.equals(UpdateType.SMART)) {
-                if(isTimeToRenewCache(ttlStatic, JEDIS.ttl(foundedKeysStatic.iterator().next().getBytes()))) {
+        if(JEDIS != null) {
+            if(foundedKeysStatic.size() > 0) {
+                if(updateTypeStatic.equals(UpdateType.FETCH)) {
                     doRenewCache();
+                } else if(updateTypeStatic.equals(UpdateType.SMART)) {
+                    if(isTimeToRenewCache(ttlStatic, JEDIS.ttl(foundedKeysStatic.iterator().next().getBytes()))) {
+                        doRenewCache();
+                    }
                 }
             }
         }
     }
 
     private static void doRenewCache() throws Throwable {
-        for(String oldKey: foundedKeysStatic) {
-            JEDIS.del(oldKey);
-        }
         logger.debug("it's time to renew cache...");
         createCache(pjpStatic, keyStatic, ttlStatic, conditionRegexStatic);
+
+        // delete unused keys
+        if(foundedKeysStatic.size() > 1) {
+            for(String oldKey: foundedKeysStatic) {
+                if(!oldKey.equals(currentKeyStatic)) {
+                    JEDIS.del(oldKey);
+                }
+            }
+        }
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
@@ -158,6 +160,7 @@ public class RedisCacheService {
             JEDIS.expire(key.getBytes(), ttl);
             logger.debug("successfully create cache");
         }
+        currentKeyStatic = key;
         return proceed;
     }
 }
