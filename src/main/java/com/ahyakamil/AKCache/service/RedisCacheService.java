@@ -13,6 +13,7 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
 
 import java.lang.reflect.Method;
 import java.util.HashSet;
@@ -32,29 +33,25 @@ public class RedisCacheService {
     private static UpdateType updateTypeStatic;
     private static String conditionRegexStatic;
     private static String currentKeyStatic;
+    private static String hostStatic;
+    private static int portStatic;
 
     public static void setupConnection(String host, int port, String username, String password) {
-        try {
-            JEDIS = new Jedis(host, port);
-            if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-                JEDIS.auth(password);
-            } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-                JEDIS.auth(username, password);
-            }
-            JEDIS.connect();
-            logger.info("Successfully connect to redis...");
-        } catch (Exception e) {
-            JEDIS = null;
-            new Thread(() -> {
-                logger.info("failed connect to redis, retry in 10s...");
-                try {
-                    Thread.sleep(10000);
-                    setupConnection(host, port, username, password);
-                } catch (Exception eSleep) {
-                    logger.debug(eSleep.getMessage());
-                }
-            }).start();
+        hostStatic = host;
+        portStatic = port;
+
+        JEDIS = getJedis(host, port);
+        if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+            JEDIS.auth(password);
+        } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+            JEDIS.auth(username, password);
         }
+        JEDIS.connect();
+    }
+
+    private static Jedis getJedis(String host, int port) {
+        JedisPool jedisPool = new JedisPool(host, port);
+        return jedisPool.getResource();
     }
 
     public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
@@ -71,43 +68,49 @@ public class RedisCacheService {
     }
 
     private static Object getData(ProceedingJoinPoint pjp, Method method, Class returnedClass) throws Throwable {
-        if(JEDIS == null) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String paramsKey = "";
+            Object[] args = pjp.getArgs();
+            paramsKey += objectMapper.writeValueAsString(args);
+            UpdateType updateType = method.getAnnotation(AKCache.class).updateType();
+            String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":updateType_" + updateType + ":args_" + paramsKey;
+            int ttl = method.getAnnotation(AKCache.class).ttl();
+            String conditionRegex = method.getAnnotation(AKCache.class).conditionRegex();
+
+            String findKey = key;
+            String keyPattern = escapeMetaCharacters(findKey) + ":*";
+            logger.debug("key to find: " + keyPattern);
+            Set<String> keys = JEDIS.keys(keyPattern);
+            if (keys.size() > 0) {
+                byte[] foundedKey = keys.iterator().next().getBytes();
+                byte[] bytes = JEDIS.hget(foundedKey, "objValue".getBytes());
+                logger.debug("key exist, get from cache");
+                pjpStatic = pjp;
+                ttlStatic = ttl;
+                keyStatic = key;
+                foundedKeysStatic = keys;
+                updateTypeStatic = updateType;
+                conditionRegexStatic = conditionRegex;
+                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                Object deSerialize = objectMapper.readValue(bytes, returnedClass);
+                return deSerialize;
+            } else {
+                return createCache(pjp, key, ttl, conditionRegex);
+            }
+        } catch (Exception e) {
+            try {
+                JEDIS = getJedis(hostStatic, portStatic);
+            } catch (Exception eConn) {
+                logger.debug(eConn.getMessage());
+                return pjp.proceed();
+            }
             return pjp.proceed();
-        }
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        String paramsKey = "";
-        Object[] args = pjp.getArgs();
-        paramsKey += objectMapper.writeValueAsString(args);
-        UpdateType updateType = method.getAnnotation(AKCache.class).updateType();
-        String key = pjp.getTarget().getClass().getName() + ":" + method.getName() + ":updateType_" + updateType + ":args_" + paramsKey;
-        int ttl = method.getAnnotation(AKCache.class).ttl();
-        String conditionRegex = method.getAnnotation(AKCache.class).conditionRegex();
-
-        String findKey = key;
-        String keyPattern = escapeMetaCharacters(findKey) + ":*";
-        logger.debug("key to find: " + keyPattern);
-        Set<String> keys = JEDIS.keys(keyPattern);
-        if (keys.size() > 0) {
-            byte[] foundedKey = keys.iterator().next().getBytes();
-            byte[] bytes = JEDIS.hget(foundedKey, "objValue".getBytes());
-            logger.debug("key exist, get from cache");
-            pjpStatic = pjp;
-            ttlStatic = ttl;
-            keyStatic = key;
-            foundedKeysStatic = keys;
-            updateTypeStatic = updateType;
-            conditionRegexStatic = conditionRegex;
-            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            Object deSerialize = objectMapper.readValue(bytes, returnedClass);
-            return deSerialize;
-        } else {
-            return createCache(pjp, key, ttl, conditionRegex);
         }
     }
 
     public static void renewCache() throws Throwable {
-        if(JEDIS != null) {
+        try {
             if(foundedKeysStatic.size() > 0) {
                 if(updateTypeStatic.equals(UpdateType.FETCH)) {
                     doRenewCache();
@@ -117,6 +120,8 @@ public class RedisCacheService {
                     }
                 }
             }
+        } catch (Exception e) {
+            logger.debug(e.getMessage());
         }
     }
 
