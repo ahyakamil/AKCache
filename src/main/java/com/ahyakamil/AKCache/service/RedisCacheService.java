@@ -36,7 +36,17 @@ public class RedisCacheService {
     private static String conditionRegexStatic;
     private static JedisPool JEDIS_POOL;
 
+    private static String hostStatic;
+    private static int portStatic;
+    private static String usernameStatic;
+    private static String passwordStatic;
+
     public static void setupConnection(String host, int port, String username, String password) {
+        hostStatic = host;
+        portStatic = port;
+        usernameStatic = username;
+        passwordStatic = password;
+
         JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
         JEDIS_POOL = new JedisPool(jedisPoolConfig, host, port);
         JEDIS = JEDIS_POOL.getResource();
@@ -69,6 +79,7 @@ public class RedisCacheService {
     }
 
     private static Object getData(ProceedingJoinPoint pjp, Method method, Class returnedClass) throws Throwable {
+        setupConnection(hostStatic, portStatic, usernameStatic, passwordStatic);
         ObjectMapper objectMapper = new ObjectMapper();
         String paramsKey = "";
         Object[] args = pjp.getArgs();
@@ -101,6 +112,7 @@ public class RedisCacheService {
     }
 
     public static void renewCache() throws Throwable {
+        setupConnection(hostStatic, portStatic, usernameStatic, passwordStatic);
         if(foundedKeysStatic.size() > 0) {
             if(updateTypeStatic.equals(UpdateType.FETCH)) {
                 doRenewCache();
