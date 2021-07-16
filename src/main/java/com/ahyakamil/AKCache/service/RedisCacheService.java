@@ -85,15 +85,22 @@ public class RedisCacheService {
         Jedis jedis;
         if(isUsingPoolStatic) {
             JedisPoolConfig jedisPoolConfig = buildPoolConfig();
-            JedisPool jedisPool = new JedisPool(jedisPoolConfig, host, port);
+            JedisPool jedisPool;
+            if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+                jedisPool = new JedisPool(jedisPoolConfig, host, port, 2000, password);
+            } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+                jedisPool = new JedisPool(jedisPoolConfig, host, port, 2000, username, password);
+            } else {
+                jedisPool = new JedisPool(jedisPoolConfig, host, port);
+            }
             jedis = jedisPool.getResource();
         } else {
             jedis = new Jedis(host, port);
-        }
-        if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-            jedis.auth(password);
-        } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-            jedis.auth(username, password);
+            if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+                jedis.auth(password);
+            } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
+                jedis.auth(username, password);
+            }
         }
         logger.debug("successfully connect to redis...");
         return jedis;
