@@ -8,7 +8,7 @@ import static org.junit.Assert.*;
 public class CaseTest {
     @Before
     public void setup() {
-        AKCacheSetup.setupConnection("localhost", 6379, "", "koanbatw2#", 0, 0, 0, false);
+        AKCacheSetup.setupConnection("localhost", 6379, "", "", 0, 0, 0, false);
     }
 
     @Test
