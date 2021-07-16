@@ -12,7 +12,7 @@ public class AKCacheSetup {
         return RedisCacheService.setListener(pjp);
     }
 
-    public static void renewCache() throws Throwable {
-        RedisCacheService.renewCache();
+    public static void renewCache(ProceedingJoinPoint pjp) throws Throwable {
+        RedisCacheService.renewCache(pjp);
     }
 }

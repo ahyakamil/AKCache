@@ -12,6 +12,6 @@ import java.lang.annotation.Target;
 public @interface AKCache {
     UpdateType updateType() default UpdateType.SMART;
     Class serializeClass() default Object.class;
-    int ttl() default 10800;
+    int ttl() default 86400;
     String conditionRegex() default ".*";
 }
