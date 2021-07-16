@@ -47,9 +47,9 @@ public class RedisCacheService {
 
     private static JedisPoolConfig buildPoolConfig() {
         final JedisPoolConfig poolConfig = new JedisPoolConfig();
-        poolConfig.setMaxTotal(50);
-        poolConfig.setMaxIdle(50);
-        poolConfig.setMinIdle(10);
+        poolConfig.setMaxTotal(1000);
+        poolConfig.setMaxIdle(1000);
+        poolConfig.setMinIdle(100);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setTestWhileIdle(true);
