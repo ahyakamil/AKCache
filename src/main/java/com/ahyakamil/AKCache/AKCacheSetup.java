@@ -4,6 +4,10 @@ import com.ahyakamil.AKCache.service.RedisCacheService;
 import org.aspectj.lang.ProceedingJoinPoint;
 
 public class AKCacheSetup {
+    public static void setupConnection(String host, int port, String username, String password, int maxTotalPool, int maxIdlePool, int minIdlePool) {
+        RedisCacheService.setupConnection(host, port, username, password, maxTotalPool, maxIdlePool, minIdlePool);
+    }
+
     public static void setupConnection(String host, int port, String username, String password) {
         RedisCacheService.setupConnection(host, port, username, password);
     }
