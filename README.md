@@ -51,7 +51,7 @@ Create configuration class, ex: AKCacheConfig.java
 @AKCache
 1. updateType: SMART
 2. serializeClass: Object.class
-3. ttl: 3 hours
+3. ttl: 24 hours
 4. conditionRegex: .*
 
 ### NOTES
