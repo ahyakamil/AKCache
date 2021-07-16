@@ -37,10 +37,11 @@ public class RedisCacheService {
     private static String passwordStatic;
     private static int maxTotalPoolStatic = 8;
     private static int maxIdlePoolStatic = 8;
-    private static int minIdlePoolStatic = 2;
+    private static int minIdlePoolStatic = 0;
+    private static boolean isUsingPoolStatic = false;
 
 
-    public static void setupConnection(String host, int port, String username, String password, int maxTotalPool, int maxIdlePool, int minIdlePool) {
+    public static void setupConnection(String host, int port, String username, String password, int maxTotalPool, int maxIdlePool, int minIdlePool, boolean isUsingPool) {
         hostStatic = host;
         portStatic = port;
         usernameStatic = username;
@@ -48,16 +49,8 @@ public class RedisCacheService {
         maxTotalPoolStatic = maxTotalPool;
         maxIdlePoolStatic = maxIdlePool;
         minIdlePoolStatic = minIdlePool;
+        isUsingPoolStatic = isUsingPool;
         JEDIS = openConnetion(host, port, username, password);
-    }
-
-    public static void setupConnection(String host, int port, String username, String password) {
-        hostStatic = host;
-        portStatic = port;
-        usernameStatic = username;
-        passwordStatic = password;
-        JEDIS = openConnetion(host, port, username, password);
-
     }
 
     private static JedisPoolConfig buildPoolConfig() {
@@ -65,6 +58,7 @@ public class RedisCacheService {
         poolConfig.setMaxTotal(maxTotalPoolStatic);
         poolConfig.setMaxIdle(maxIdlePoolStatic);
         poolConfig.setMinIdle(minIdlePoolStatic);
+        poolConfig.setMaxWaitMillis(2000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setTestWhileIdle(true);
@@ -88,9 +82,14 @@ public class RedisCacheService {
     }
 
     private static Jedis openConnetion(String host, int port, String username, String password) {
-        JedisPoolConfig jedisPoolConfig = buildPoolConfig();
-        JedisPool jedisPool = new JedisPool(jedisPoolConfig, host, port);
-        Jedis jedis = jedisPool.getResource();
+        Jedis jedis;
+        if(isUsingPoolStatic) {
+            JedisPoolConfig jedisPoolConfig = buildPoolConfig();
+            JedisPool jedisPool = new JedisPool(jedisPoolConfig, host, port);
+            jedis = jedisPool.getResource();
+        } else {
+            jedis = new Jedis(host, port);
+        }
         if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
             jedis.auth(password);
         } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
