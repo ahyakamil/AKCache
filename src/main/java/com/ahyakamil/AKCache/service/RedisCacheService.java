@@ -35,7 +35,21 @@ public class RedisCacheService {
     private static int portStatic;
     private static String usernameStatic;
     private static String passwordStatic;
+    private static int maxTotalPoolStatic = 8;
+    private static int maxIdlePoolStatic = 8;
+    private static int minIdlePoolStatic = 2;
 
+
+    public static void setupConnection(String host, int port, String username, String password, int maxTotalPool, int maxIdlePool, int minIdlePool) {
+        hostStatic = host;
+        portStatic = port;
+        usernameStatic = username;
+        passwordStatic = password;
+        maxTotalPoolStatic = maxTotalPool;
+        maxIdlePoolStatic = maxIdlePool;
+        minIdlePoolStatic = minIdlePool;
+        JEDIS = openConnetion(host, port, username, password);
+    }
 
     public static void setupConnection(String host, int port, String username, String password) {
         hostStatic = host;
@@ -43,13 +57,14 @@ public class RedisCacheService {
         usernameStatic = username;
         passwordStatic = password;
         JEDIS = openConnetion(host, port, username, password);
+
     }
 
     private static JedisPoolConfig buildPoolConfig() {
         final JedisPoolConfig poolConfig = new JedisPoolConfig();
-        poolConfig.setMaxTotal(1000);
-        poolConfig.setMaxIdle(1000);
-        poolConfig.setMinIdle(100);
+        poolConfig.setMaxTotal(maxTotalPoolStatic);
+        poolConfig.setMaxIdle(maxIdlePoolStatic);
+        poolConfig.setMinIdle(minIdlePoolStatic);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setTestWhileIdle(true);
