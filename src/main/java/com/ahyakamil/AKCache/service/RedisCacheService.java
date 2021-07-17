@@ -20,7 +20,6 @@ import redis.clients.jedis.JedisPoolConfig;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,6 +38,8 @@ public class RedisCacheService {
     private static int maxIdlePoolStatic = 8;
     private static int minIdlePoolStatic = 0;
     private static boolean isUsingPoolStatic = false;
+    private static JedisPool JEDIS_POOL;
+    private static JedisPool JEDIS_POOL_ASYNC;
 
 
     public static void setupConnection(String host, int port, String username, String password, int maxTotalPool, int maxIdlePool, int minIdlePool, boolean isUsingPool) {
@@ -50,7 +51,8 @@ public class RedisCacheService {
         maxIdlePoolStatic = maxIdlePool;
         minIdlePoolStatic = minIdlePool;
         isUsingPoolStatic = isUsingPool;
-        JEDIS = openConnetion(host, port, username, password);
+        openConnetion(host, port, username, password, false);
+        openConnetion(host, port, username, password, true);
     }
 
     private static JedisPoolConfig buildPoolConfig() {
@@ -69,21 +71,33 @@ public class RedisCacheService {
         return poolConfig;
     }
 
-    private static Jedis getJedis(Jedis jedis, String host, int port, String username, String password) {
+    private static void checkJedis(String host, int port, String username, String password, boolean isAsync) {
         try {
-            jedis.get("forCheckConnection");
-            logger.debug("still connected...");
-            return jedis;
+            if(isAsync) {
+                JEDIS_ASYNC.get("forCheckConnection");
+                logger.debug("still connected...");
+            } else {
+                JEDIS.get("forCheckConnection");
+                logger.debug("still connected...");
+            }
         } catch (Exception e) {
             logger.debug("not connected...");
-            jedis = openConnetion(host, port, username, password);
-            return jedis;
+            openConnetion(host, port, username, password, isAsync);
         }
     }
 
-    private static Jedis openConnetion(String host, int port, String username, String password) {
+    private static void openConnetion(String host, int port, String username, String password, boolean isAsync) {
         Jedis jedis;
         if(isUsingPoolStatic) {
+            if(isAsync) {
+                if(JEDIS_POOL_ASYNC != null) {
+                    JEDIS_POOL_ASYNC.close();
+                }
+            } else {
+                if(JEDIS_POOL != null) {
+                    JEDIS_POOL.close();
+                }
+            }
             JedisPoolConfig jedisPoolConfig = buildPoolConfig();
             JedisPool jedisPool;
             if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
@@ -93,7 +107,13 @@ public class RedisCacheService {
             } else {
                 jedisPool = new JedisPool(jedisPoolConfig, host, port);
             }
-            jedis = jedisPool.getResource();
+            if(isAsync) {
+                JEDIS_POOL_ASYNC = jedisPool;
+                JEDIS_ASYNC = jedisPool.getResource();
+            } else {
+                JEDIS_POOL = jedisPool;
+                JEDIS = jedisPool.getResource();
+            }
         } else {
             jedis = new Jedis(host, port);
             if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
@@ -101,9 +121,13 @@ public class RedisCacheService {
             } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
                 jedis.auth(username, password);
             }
+            if(isAsync) {
+                JEDIS_ASYNC = jedis;
+            } else {
+                JEDIS = jedis;
+            }
         }
         logger.debug("successfully connect to redis...");
-        return jedis;
     }
 
     public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
@@ -137,7 +161,7 @@ public class RedisCacheService {
 
     private static Object getData(ProceedingJoinPoint pjp, Method method, Class returnedClass) throws Throwable {
         try {
-            JEDIS = getJedis(JEDIS, hostStatic, portStatic, usernameStatic, passwordStatic);
+            checkJedis(hostStatic, portStatic, usernameStatic, passwordStatic, false);
             ObjectMapper objectMapper = new ObjectMapper();
             String key = getKey(pjp);
             int ttl = getTtl(pjp);
@@ -183,7 +207,7 @@ public class RedisCacheService {
     }
 
     public static void renewCache(ProceedingJoinPoint pjp) throws Throwable {
-        JEDIS_ASYNC = getJedis(JEDIS_ASYNC, hostStatic, portStatic, usernameStatic, passwordStatic);
+        checkJedis(hostStatic, portStatic, usernameStatic, passwordStatic, true);
         String key = getKey(pjp);
         Set<String> keys = findKeys(key, JEDIS_ASYNC);
         logger.debug("==> renewCache() key size: " + keys.size());
