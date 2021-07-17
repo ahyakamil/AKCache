@@ -258,12 +258,25 @@ public class RedisCacheService {
         Pattern pattern = Pattern.compile(conditionRegex);
         Matcher matcher = pattern.matcher(key);
         if(matcher.find()) {
+            doCreate(oldKeys, key, jedis, proceed, ttl);
+        }
+        return proceed;
+    }
+
+    private static void doCreate(List<String> oldKeys, String key, Jedis jedis, Object proceed, int ttl) {
+        new Thread(() -> {
+            ObjectMapper objectMapper = new ObjectMapper();
             logger.debug("serializing obj...");
             logger.debug("key bytes : " + key.getBytes());
             ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(proceed);
-            jedis.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
+            try {
+                jedis.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+            }
             jedis.expire(key.getBytes(), ttl);
             logger.debug("successfully create cache");
+
             //remove unused keys
             if(oldKeys != null && oldKeys.size() > 0) {
                 for(String oldKey: oldKeys) {
@@ -272,7 +285,6 @@ public class RedisCacheService {
                     }
                 }
             }
-        }
-        return proceed;
+        }).start();
     }
 }
