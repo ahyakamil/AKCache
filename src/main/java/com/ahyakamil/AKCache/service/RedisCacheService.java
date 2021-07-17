@@ -158,6 +158,9 @@ public class RedisCacheService {
             logger.debug("get data failed...");
             logger.debug(e.getMessage());
             return pjp.proceed();
+        } finally {
+            logger.debug("close redis..");
+            JEDIS.close();
         }
     }
 
@@ -193,6 +196,8 @@ public class RedisCacheService {
                 }
             }
         }
+        logger.debug("close redis..");
+        JEDIS_ASYNC.close();
     }
 
     private static void doRenewCache(Set<String> oldKeys, ProceedingJoinPoint pjp, Jedis jedis) throws Throwable {
