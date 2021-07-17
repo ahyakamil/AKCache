@@ -192,13 +192,16 @@ public class RedisCacheService {
         String findKey = key;
         String keyPattern = escapeMetaCharacters(findKey) + ":*";
         logger.debug("key to find: " + keyPattern);
-        ScanParams scanParams = new ScanParams().match(keyPattern).count(100);
+        ScanParams scanParams = new ScanParams().match(keyPattern).count(10);
         String cur = ScanParams.SCAN_POINTER_START;
         List<String> keys = new ArrayList<>();
         do {
             ScanResult scanResult = jedis.scan(cur, scanParams);
             keys.addAll(scanResult.getResult());
             cur = scanResult.getCursor();
+            if(keys.size() > 0) {
+                break;
+            }
         } while (!cur.equals(ScanParams.SCAN_POINTER_START));
         return keys;
     }
