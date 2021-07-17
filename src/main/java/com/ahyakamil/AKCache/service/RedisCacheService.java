@@ -14,12 +14,12 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.*;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -167,7 +167,7 @@ public class RedisCacheService {
             int ttl = getTtl(pjp);
             String conditionRegex = method.getAnnotation(AKCache.class).conditionRegex();
 
-            Set<String> keys = findKeys(key, JEDIS);
+            List<String> keys = findKeys(key, JEDIS);
             if (keys.size() > 0) {
                 byte[] foundedKey = keys.iterator().next().getBytes();
                 byte[] bytes = JEDIS.hget(foundedKey, "objValue".getBytes());
@@ -188,11 +188,18 @@ public class RedisCacheService {
         }
     }
 
-    private static Set<String> findKeys(String key, Jedis jedis) {
+    private static List<String> findKeys(String key, Jedis jedis) {
         String findKey = key;
         String keyPattern = escapeMetaCharacters(findKey) + ":*";
         logger.debug("key to find: " + keyPattern);
-        Set<String> keys = jedis.keys(keyPattern);
+        ScanParams scanParams = new ScanParams().match(keyPattern).count(100);
+        String cur = ScanParams.SCAN_POINTER_START;
+        List<String> keys = new ArrayList<>();
+        do {
+            ScanResult scanResult = jedis.scan(cur, scanParams);
+            keys.addAll(scanResult.getResult());
+            cur = scanResult.getCursor();
+        } while (!cur.equals(ScanParams.SCAN_POINTER_START));
         return keys;
     }
 
@@ -209,7 +216,7 @@ public class RedisCacheService {
     public static void renewCache(ProceedingJoinPoint pjp) throws Throwable {
         checkJedis(hostStatic, portStatic, usernameStatic, passwordStatic, true);
         String key = getKey(pjp);
-        Set<String> keys = findKeys(key, JEDIS_ASYNC);
+        List<String> keys = findKeys(key, JEDIS_ASYNC);
         logger.debug("==> renewCache() key size: " + keys.size());
         if(keys.size() > 0) {
             if(getUpdateType(pjp).equals(UpdateType.FETCH)) {
@@ -224,7 +231,7 @@ public class RedisCacheService {
         JEDIS_ASYNC.close();
     }
 
-    private static void doRenewCache(Set<String> oldKeys, ProceedingJoinPoint pjp, Jedis jedis) throws Throwable {
+    private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp, Jedis jedis) throws Throwable {
         logger.debug("it's time to renew cache...");
         createCache(jedis, pjp, getKey(pjp), getTtl(pjp), getConditionRegex(pjp), oldKeys);
     }
@@ -240,7 +247,7 @@ public class RedisCacheService {
         return false;
     }
 
-    private static Object createCache(Jedis jedis, ProceedingJoinPoint pjp, String key, int ttl, String conditionRegex, Set<String> oldKeys) throws Throwable {
+    private static Object createCache(Jedis jedis, ProceedingJoinPoint pjp, String key, int ttl, String conditionRegex, List<String> oldKeys) throws Throwable {
         ObjectMapper objectMapper = new ObjectMapper();
         Object proceed = pjp.proceed();
         key += ":return_" + objectMapper.writeValueAsString(proceed);
@@ -254,13 +261,12 @@ public class RedisCacheService {
             jedis.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
             jedis.expire(key.getBytes(), ttl);
             logger.debug("successfully create cache");
-        }
-
-        //remove unused keys
-        if(oldKeys != null && oldKeys.size() > 0) {
-            for(String oldKey: oldKeys) {
-                if(!oldKey.equals(key)) {
-                    jedis.del(oldKey);
+            //remove unused keys
+            if(oldKeys != null && oldKeys.size() > 0) {
+                for(String oldKey: oldKeys) {
+                    if(!oldKey.equals(key)) {
+                        jedis.del(oldKey);
+                    }
                 }
             }
         }
