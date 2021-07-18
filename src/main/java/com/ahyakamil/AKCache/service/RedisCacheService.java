@@ -29,7 +29,6 @@ import static com.ahyakamil.AKCache.util.AKUtils.escapeMetaCharacters;
 public class RedisCacheService {
     private static Logger logger = LoggerFactory.getLogger(AKCacheSetup.class);
     private static Jedis JEDIS;
-    private static Jedis JEDIS_ASYNC;
     private static String hostStatic;
     private static int portStatic;
     private static String usernameStatic;
@@ -39,7 +38,6 @@ public class RedisCacheService {
     private static int minIdlePoolStatic = 0;
     private static boolean isUsingPoolStatic = false;
     private static JedisPool JEDIS_POOL;
-    private static JedisPool JEDIS_POOL_ASYNC;
 
 
     public static void setupConnection(String host, int port, String username, String password, int maxTotalPool, int maxIdlePool, int minIdlePool, boolean isUsingPool) {
@@ -69,11 +67,7 @@ public class RedisCacheService {
 
     private static void checkJedis(String host, int port, String username, String password, boolean isAsync) {
         try {
-            if(isAsync) {
-                JEDIS_ASYNC.get("forCheckConnection");
-            } else {
-                JEDIS.get("forCheckConnection");
-            }
+            JEDIS.get("forCheckConnection");
             logger.debug("still connected...");
         } catch (Exception e) {
             logger.debug("not connected...");
@@ -82,22 +76,12 @@ public class RedisCacheService {
     }
 
     private static void openConnetion(String host, int port, String username, String password, boolean isAsync) {
-        Jedis jedis;
         if(isUsingPoolStatic) {
-            if(isAsync) {
-                if(JEDIS_POOL_ASYNC != null) {
-                    JEDIS_POOL_ASYNC.close();
-                }
-                if(JEDIS_ASYNC != null) {
-                    JEDIS_ASYNC.close();
-                }
-            } else {
-                if(JEDIS_POOL != null) {
-                    JEDIS_POOL.close();
-                }
-                if(JEDIS != null) {
-                    JEDIS.close();
-                }
+            if(JEDIS_POOL != null) {
+                JEDIS_POOL.close();
+            }
+            if(JEDIS != null) {
+                JEDIS.close();
             }
             JedisPoolConfig jedisPoolConfig = buildPoolConfig(isAsync);
             JedisPool jedisPool;
@@ -108,30 +92,25 @@ public class RedisCacheService {
             } else {
                 jedisPool = new JedisPool(jedisPoolConfig, host, port, 2000);
             }
-            if(isAsync) {
-                JEDIS_POOL_ASYNC = jedisPool;
-                JEDIS_ASYNC = jedisPool.getResource();
-            } else {
-                JEDIS_POOL = jedisPool;
-                JEDIS = jedisPool.getResource();
-            }
+            JEDIS_POOL = jedisPool;
+            JEDIS = jedisPool.getResource();
         } else {
             if(JEDIS != null) {
                 JEDIS.close();
             }
-            jedis = new Jedis(host, port);
-            if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-                jedis.auth(password);
-            } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
-                jedis.auth(username, password);
-            }
-            if(isAsync) {
-                JEDIS_ASYNC = jedis;
-            } else {
-                JEDIS = jedis;
-            }
+            JEDIS = getJedis();
         }
         logger.debug("successfully connect to redis...");
+    }
+
+    public static Jedis getJedis() {
+        Jedis jedis = new Jedis(hostStatic, portStatic);
+        if(StringUtils.isEmpty(usernameStatic) && !StringUtils.isEmpty(passwordStatic)) {
+            jedis.auth(passwordStatic);
+        } else if(!StringUtils.isEmpty(usernameStatic) && !StringUtils.isEmpty(passwordStatic)) {
+            jedis.auth(usernameStatic, passwordStatic);
+        }
+        return jedis;
     }
 
     public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
@@ -180,7 +159,15 @@ public class RedisCacheService {
                 Object deSerialize = objectMapper.readValue(bytes, returnedClass);
                 return deSerialize;
             } else {
-                return createCache(JEDIS_ASYNC, pjp, key, ttl, conditionRegex, null);
+                Object proceed = pjp.proceed();
+                new Thread(() -> {
+                    try {
+                        createCache(proceed, key, ttl, conditionRegex, null);
+                    } catch (Throwable throwable) {
+                        logger.debug(throwable.getMessage());
+                    }
+                }).start();
+                return proceed;
             }
         } catch (Exception e) {
             logger.debug("get data failed...");
@@ -221,24 +208,26 @@ public class RedisCacheService {
     }
 
     public static void renewCache(ProceedingJoinPoint pjp) throws Throwable {
-        checkJedis(hostStatic, portStatic, usernameStatic, passwordStatic, true);
+        Jedis jedis = getJedis();
         String key = getKey(pjp);
-        List<String> keys = findKeys(key, JEDIS_ASYNC);
+        List<String> keys = findKeys(key, jedis);
+        jedis.close();
+
         logger.debug("==> renewCache() key size: " + keys.size());
         if(keys.size() > 0) {
             if(getUpdateType(pjp).equals(UpdateType.FETCH)) {
-                doRenewCache(keys, pjp, JEDIS_ASYNC);
+                doRenewCache(keys, pjp);
             } else if(getUpdateType(pjp).equals(UpdateType.SMART)) {
-                if(isTimeToRenewCache(getTtl(pjp), JEDIS_ASYNC.ttl(keys.iterator().next().getBytes()))) {
-                    doRenewCache(keys, pjp, JEDIS_ASYNC);
+                if(isTimeToRenewCache(getTtl(pjp), jedis.ttl(keys.iterator().next().getBytes()))) {
+                    doRenewCache(keys, pjp);
                 }
             }
         }
     }
 
-    private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp, Jedis jedis) throws Throwable {
+    private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp) throws Throwable {
         logger.debug("it's time to renew cache...");
-        createCache(jedis, pjp, getKey(pjp), getTtl(pjp), getConditionRegex(pjp), oldKeys);
+        createCache(pjp.proceed(), getKey(pjp), getTtl(pjp), getConditionRegex(pjp), oldKeys);
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
@@ -252,44 +241,40 @@ public class RedisCacheService {
         return false;
     }
 
-    private static Object createCache(Jedis jedis, ProceedingJoinPoint pjp, String key, int ttl, String conditionRegex, List<String> oldKeys) throws Throwable {
+    private static void createCache(Object proceed, String key, int ttl, String conditionRegex, List<String> oldKeys) throws Throwable {
         ObjectMapper objectMapper = new ObjectMapper();
-        Object proceed = pjp.proceed();
         key += ":return_" + objectMapper.writeValueAsString(proceed);
         logger.debug("key : " + key);
         Pattern pattern = Pattern.compile(conditionRegex);
         Matcher matcher = pattern.matcher(key);
         if(matcher.find()) {
-            doCreate(oldKeys, key, jedis, proceed, ttl);
+            doCreate(oldKeys, key, proceed, ttl);
         }
-        return proceed;
     }
 
-    private static void doCreate(List<String> oldKeys, String key, Jedis jedis, Object proceed, int ttl) {
-        new Thread(() -> {
-            try {
-                ObjectMapper objectMapper = new ObjectMapper();
-                logger.debug("serializing obj...");
-                logger.debug("key bytes : " + key.getBytes());
-                ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(proceed);
-                jedis.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
-                jedis.expire(key.getBytes(), ttl);
-                logger.debug("successfully create cache");
+    private static void doCreate(List<String> oldKeys, String key, Object proceed, int ttl) {
+        Jedis jedis = getJedis();
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            logger.debug("serializing obj...");
+            logger.debug("key bytes : " + key.getBytes());
+            ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(proceed);
+            jedis.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
+            jedis.expire(key.getBytes(), ttl);
+            logger.debug("successfully create cache");
 
-                //remove unused keys
-                if(oldKeys != null && oldKeys.size() > 0) {
-                    for(String oldKey: oldKeys) {
-                        if(!oldKey.equals(key)) {
-                            jedis.del(oldKey);
-                        }
+            //remove unused keys
+            if(oldKeys != null && oldKeys.size() > 0) {
+                for(String oldKey: oldKeys) {
+                    if(!oldKey.equals(key)) {
+                        jedis.del(oldKey);
                     }
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-
-                jedis.close();
             }
-        }).start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            jedis.close();
+        }
     }
 }
