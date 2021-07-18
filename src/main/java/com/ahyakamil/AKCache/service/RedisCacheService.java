@@ -53,7 +53,7 @@ public class RedisCacheService {
         isUsingPoolStatic = isUsingPool;
     }
 
-    private static JedisPoolConfig buildPoolConfig() {
+    private static JedisPoolConfig buildPoolConfig(boolean isAsync) {
         final JedisPoolConfig poolConfig = new JedisPoolConfig();
         poolConfig.setMaxTotal(maxTotalPoolStatic);
         poolConfig.setMaxIdle(maxIdlePoolStatic);
@@ -71,11 +71,10 @@ public class RedisCacheService {
         try {
             if(isAsync) {
                 JEDIS_ASYNC.get("forCheckConnection");
-                logger.debug("still connected...");
             } else {
                 JEDIS.get("forCheckConnection");
-                logger.debug("still connected...");
             }
+            logger.debug("still connected...");
         } catch (Exception e) {
             logger.debug("not connected...");
             openConnetion(host, port, username, password, isAsync);
@@ -89,12 +88,18 @@ public class RedisCacheService {
                 if(JEDIS_POOL_ASYNC != null) {
                     JEDIS_POOL_ASYNC.close();
                 }
+                if(JEDIS_ASYNC != null) {
+                    JEDIS_ASYNC.close();
+                }
             } else {
                 if(JEDIS_POOL != null) {
                     JEDIS_POOL.close();
                 }
+                if(JEDIS != null) {
+                    JEDIS.close();
+                }
             }
-            JedisPoolConfig jedisPoolConfig = buildPoolConfig();
+            JedisPoolConfig jedisPoolConfig = buildPoolConfig(isAsync);
             JedisPool jedisPool;
             if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
                 jedisPool = new JedisPool(jedisPoolConfig, host, port, 2000, password);
@@ -111,6 +116,9 @@ public class RedisCacheService {
                 JEDIS = jedisPool.getResource();
             }
         } else {
+            if(JEDIS != null) {
+                JEDIS.close();
+            }
             jedis = new Jedis(host, port);
             if(StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
                 jedis.auth(password);
