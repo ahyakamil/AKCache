@@ -51,8 +51,6 @@ public class RedisCacheService {
         maxIdlePoolStatic = maxIdlePool;
         minIdlePoolStatic = minIdlePool;
         isUsingPoolStatic = isUsingPool;
-        openConnetion(host, port, username, password, false);
-        openConnetion(host, port, username, password, true);
     }
 
     private static JedisPoolConfig buildPoolConfig() {
@@ -60,13 +58,11 @@ public class RedisCacheService {
         poolConfig.setMaxTotal(maxTotalPoolStatic);
         poolConfig.setMaxIdle(maxIdlePoolStatic);
         poolConfig.setMinIdle(minIdlePoolStatic);
-        poolConfig.setMaxWaitMillis(2000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setTestWhileIdle(true);
         poolConfig.setMinEvictableIdleTimeMillis(Duration.ofSeconds(60).toMillis());
         poolConfig.setTimeBetweenEvictionRunsMillis(Duration.ofSeconds(30).toMillis());
-        poolConfig.setNumTestsPerEvictionRun(3);
         poolConfig.setBlockWhenExhausted(true);
         return poolConfig;
     }
@@ -105,7 +101,7 @@ public class RedisCacheService {
             } else if(!StringUtils.isEmpty(username) && !StringUtils.isEmpty(password)) {
                 jedisPool = new JedisPool(jedisPoolConfig, host, port, 2000, username, password);
             } else {
-                jedisPool = new JedisPool(jedisPoolConfig, host, port);
+                jedisPool = new JedisPool(jedisPoolConfig, host, port, 2000);
             }
             if(isAsync) {
                 JEDIS_POOL_ASYNC = jedisPool;
@@ -176,7 +172,7 @@ public class RedisCacheService {
                 Object deSerialize = objectMapper.readValue(bytes, returnedClass);
                 return deSerialize;
             } else {
-                return createCache(JEDIS, pjp, key, ttl, conditionRegex, null);
+                return createCache(JEDIS_ASYNC, pjp, key, ttl, conditionRegex, null);
             }
         } catch (Exception e) {
             logger.debug("get data failed...");
@@ -230,8 +226,6 @@ public class RedisCacheService {
                 }
             }
         }
-        logger.debug("close redis..");
-        JEDIS_ASYNC.close();
     }
 
     private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp, Jedis jedis) throws Throwable {
@@ -265,25 +259,28 @@ public class RedisCacheService {
 
     private static void doCreate(List<String> oldKeys, String key, Jedis jedis, Object proceed, int ttl) {
         new Thread(() -> {
-            ObjectMapper objectMapper = new ObjectMapper();
-            logger.debug("serializing obj...");
-            logger.debug("key bytes : " + key.getBytes());
-            ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(proceed);
             try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                logger.debug("serializing obj...");
+                logger.debug("key bytes : " + key.getBytes());
+                ForceObjToSerialize forceObjToSerialize = new ForceObjToSerialize(proceed);
                 jedis.hset(key.getBytes(), "objValue".getBytes(), objectMapper.writeValueAsBytes(forceObjToSerialize.getValueObj()));
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
-            }
-            jedis.expire(key.getBytes(), ttl);
-            logger.debug("successfully create cache");
+                jedis.expire(key.getBytes(), ttl);
+                logger.debug("successfully create cache");
 
-            //remove unused keys
-            if(oldKeys != null && oldKeys.size() > 0) {
-                for(String oldKey: oldKeys) {
-                    if(!oldKey.equals(key)) {
-                        jedis.del(oldKey);
+                //remove unused keys
+                if(oldKeys != null && oldKeys.size() > 0) {
+                    for(String oldKey: oldKeys) {
+                        if(!oldKey.equals(key)) {
+                            jedis.del(oldKey);
+                        }
                     }
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+
+                jedis.close();
             }
         }).start();
     }
