@@ -30,8 +30,7 @@
         <connection>scm:git:git://github.com/ahyakamil/AKCache.git</connection>
         <developerConnection>scm:git:git@github.com:ahyakamil/ahyakamil.git</developerConnection>
         <url>https://github.com/ahyakamil/AKCache</url>
-      <tag>akcache-1.0.0</tag>
-  </scm>
+    </scm>
 
     <distributionManagement>
         <snapshotRepository>
