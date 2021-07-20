@@ -136,7 +136,7 @@ public class RedisCacheService {
         String keyPattern = escapeMetaCharacters(findKey) + ":*";
         logger.debug("key to find: " + keyPattern);
         ScanArgs scanArgs = new ScanArgs();
-        scanArgs.limit(100);
+        scanArgs.limit(10000);
         scanArgs.match(keyPattern);
         List<String> keys =  new ArrayList<>();
 
