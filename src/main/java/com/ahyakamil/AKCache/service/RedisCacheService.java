@@ -131,24 +131,30 @@ public class RedisCacheService {
     }
 
     private static List<String> findKeys(String key) {
+
         String findKey = key;
         String keyPattern = escapeMetaCharacters(findKey) + ":*";
         logger.debug("key to find: " + keyPattern);
         ScanArgs scanArgs = new ScanArgs();
-        scanArgs.limit(10);
+        scanArgs.limit(100);
         scanArgs.match(keyPattern);
         List<String> keys =  new ArrayList<>();
-        String cur = "0";
-        do {
-            KeyScanCursor keyScanCursor = REDIS_SYNC.scan(scanArgs);
-            keyScanCursor.setCursor(cur);
-            List<String> foundedKeys = keyScanCursor.getKeys();
+
+        KeyScanCursor keyScanCursor = REDIS_SYNC.scan(scanArgs);
+        List<String> foundedKeys = keyScanCursor.getKeys();
+        keys.addAll(foundedKeys);
+        if(keys.size() > 0) {
+            keyScanCursor.setFinished(true);
+        }
+        while (!keyScanCursor.isFinished()) {
+            foundedKeys = keyScanCursor.getKeys();
             keys.addAll(foundedKeys);
-            cur = keyScanCursor.getCursor();
+            keyScanCursor = REDIS_SYNC.scan(keyScanCursor, scanArgs);
+            logger.debug("cursor: " + keyScanCursor.getCursor());
             if(keys.size() > 0) {
-                break;
+                keyScanCursor.setFinished(true);
             }
-        } while (!cur.equals("0"));
+        }
         return keys;
     }
 
