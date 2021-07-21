@@ -119,13 +119,11 @@ public class RedisCacheService {
             return deSerialize;
         } else {
             Object proceed = pjp.proceed();
-            new Thread(() -> {
-                try {
-                    createCache(proceed, key, ttl, conditionRegex, null);
-                } catch (Throwable throwable) {
-                    logger.debug(throwable.getMessage());
-                }
-            }).start();
+            try {
+                createCache(proceed, key, ttl, conditionRegex, null);
+            } catch (Throwable throwable) {
+                logger.debug(throwable.getMessage());
+            }
             return proceed;
         }
     }
