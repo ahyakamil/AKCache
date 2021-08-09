@@ -179,6 +179,7 @@ public class RedisCacheService {
         Object[] args = pjp.getArgs();
         Gson gson = new Gson();
         String json = gson.toJson(args);
+        logger.debug("===> args: " + json);
         paramsKey += json;
         UpdateType updateType = getUpdateType(pjp);
 
@@ -190,36 +191,60 @@ public class RedisCacheService {
         boolean isOpenToWrite = false;
         for(int i=0; i < id.length(); i++) {
             if(chars[i] == '[') {
-                isOpenToWrite = !isOpenToWrite;
+                isOpenToWrite = true;
             } else if(chars[i] == ']') {
                 isOpenToWrite = false;
             } else if(chars[i] == '.') {
-                isOpenToWrite = !isOpenToWrite;
+                isOpenToWrite = true;
             }
+
 
             if(isOpenToWrite == true) {
                 strToFind += chars[i];
+                int nextChar = i+1;
+                if((nextChar) < id.length()) {
+                    if(chars[nextChar] == '.') {
+                        isOpenToWrite = false;
+                    }
+                }
             }
 
-            if((isOpenToWrite == false && !strToFind.isEmpty()) || (isOpenToWrite == true && i == id.length()-1)) {
+            if(i == (id.length()-1)) {
+                isOpenToWrite = false;
+            }
+
+            if((isOpenToWrite == false && !strToFind.isEmpty())) {
+                logger.debug("===> strToFind " + strToFind);
+                logger.debug("===> jsonToFind: " + jsonToFind);
                 JsonElement jsonElement = new JsonParser().parse(jsonToFind);
-                logger.debug("sip " + strToFind);
                 if(strToFind.contains("[")) {
                     strToFind = strToFind.replace("[", "");
                     JsonArray jsonArray = jsonElement.getAsJsonArray();
-                    jsonToFind = jsonArray.get(Integer.parseInt(strToFind)).getAsString();
+                    JsonElement checkJson = jsonArray.get(Integer.parseInt(strToFind));
+                    if(checkJson.isJsonArray()) {
+                        jsonToFind = gson.toJson(checkJson.getAsJsonArray());
+                    } else if(checkJson.isJsonObject()) {
+                        jsonToFind = gson.toJson(checkJson.getAsJsonObject());
+                    } else {
+                        jsonToFind = checkJson.getAsString();
+                    }
                     valueId = jsonToFind;
                 } else {
-                    JsonObject jsonObject = jsonElement.getAsJsonObject();
-                    jsonToFind = jsonObject.get(strToFind).getAsString();
+                    strToFind = strToFind.replace(".", "");
+                    try {
+                        JsonObject jsonObject = jsonElement.getAsJsonObject();
+                        jsonToFind = gson.toJson(jsonObject.get(strToFind));
+                    } catch (UnsupportedOperationException e) {
+                        JsonObject jsonObject = jsonElement.getAsJsonObject();
+                        jsonToFind = gson.toJson(jsonObject.get(strToFind).getAsString());
+                    }
                     valueId = jsonToFind;
                 }
                 strToFind = "";
             }
         }
 
-        logger.debug("===> ini adalah valueId: " + valueId);
-
+        logger.debug("===> valueId: " + valueId);
         String key = pjp.getTarget().getClass().getName() + ":" + getMethod(pjp).getName() + ":updateType_" + updateType + ":args_" + paramsKey;
         return key;
     }
