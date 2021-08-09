@@ -14,4 +14,5 @@ public @interface AKCache {
     Class serializeClass() default Object.class;
     int ttl() default 86400;
     String conditionRegex() default ".*";
+    String id() default "";
 }

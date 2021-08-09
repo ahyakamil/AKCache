@@ -7,8 +7,9 @@ import com.ahyakamil.AKCache.constant.AKConstants;
 import com.ahyakamil.AKCache.constant.UpdateType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
+import com.google.gson.*;
 import io.lettuce.core.KeyScanCursor;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
@@ -75,20 +76,23 @@ public class RedisCacheService {
     }
 
     public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
-        Class returnedClass;
-        try {
-            returnedClass = getMethod(pjp).getAnnotation(AKCacheUpdate.class).serializeClass();
+        if(getMethod(pjp).getAnnotation(AKCacheUpdate.class) != null) {
             return null;
-        } catch (NullPointerException e) {
-            returnedClass = getMethod(pjp).getAnnotation(AKCache.class).serializeClass();
+        } else if(getMethod(pjp).getAnnotation(AKCache.class) != null) {
+            Class returnedClass = getMethod(pjp).getAnnotation(AKCache.class).serializeClass();
             return getData(pjp, getMethod(pjp), returnedClass);
         }
+        return null;
     }
 
     private static Method getMethod(ProceedingJoinPoint pjp) {
         MethodSignature signature = (MethodSignature) pjp.getSignature();
         Method method = signature.getMethod();
         return method;
+    }
+
+    private static String getId(ProceedingJoinPoint pjp) {
+        return getMethod(pjp).getAnnotation(AKCache.class).id();
     }
 
     private static UpdateType getUpdateType(ProceedingJoinPoint pjp) {
@@ -105,11 +109,10 @@ public class RedisCacheService {
 
     private static Object getData(ProceedingJoinPoint pjp, Method method, Class returnedClass) throws Throwable {
         ObjectMapper objectMapper = new ObjectMapper();
-        String key = getKey(pjp);
         int ttl = getTtl(pjp);
         String conditionRegex = method.getAnnotation(AKCache.class).conditionRegex();
 
-        List<String> keys = findKeys(key);
+        List<String> keys = findKeys(pjp);
         if (keys.size() > 0) {
             String foundedKey = keys.get(0);
             String objValue = REDIS_SYNC.hget(foundedKey, "objValue");
@@ -120,7 +123,7 @@ public class RedisCacheService {
         } else {
             Object proceed = pjp.proceed();
             try {
-                createCache(proceed, key, ttl, conditionRegex, null);
+                createCache(proceed, pjp, ttl, conditionRegex, null);
             } catch (Throwable throwable) {
                 logger.debug(throwable.getMessage());
             }
@@ -128,9 +131,14 @@ public class RedisCacheService {
         }
     }
 
-    private static List<String> findKeys(String key) {
-
-        String findKey = key;
+    private static List<String> findKeys(ProceedingJoinPoint pjp) throws JsonProcessingException {
+        String id = getId(pjp);
+        String findKey = "";
+        if(id.trim().isEmpty()) {
+            findKey = getKey(pjp);
+        } else {
+            findKey = getKeyWithId(pjp);
+        }
         String keyPattern = escapeMetaCharacters(findKey) + ":*";
         logger.debug("key to find: " + keyPattern);
         ScanArgs scanArgs = new ScanArgs();
@@ -161,14 +169,63 @@ public class RedisCacheService {
         Object[] args = pjp.getArgs();
         Gson gson = new Gson();
         paramsKey += gson.toJson(args);
-        UpdateType updateType = getMethod(pjp).getAnnotation(AKCache.class).updateType();
+        UpdateType updateType = getUpdateType(pjp);
+        String key = pjp.getTarget().getClass().getName() + ":" + getMethod(pjp).getName() + ":updateType_" + updateType + ":args_" + paramsKey;
+        return key;
+    }
+
+    private static String getKeyWithId(ProceedingJoinPoint pjp) {
+        String paramsKey = "";
+        Object[] args = pjp.getArgs();
+        Gson gson = new Gson();
+        String json = gson.toJson(args);
+        paramsKey += json;
+        UpdateType updateType = getUpdateType(pjp);
+
+        String id = getId(pjp);
+        String valueId = "";
+        char[] chars = id.toCharArray();
+        String strToFind = "";
+        String jsonToFind = json;
+        boolean isOpenToWrite = false;
+        for(int i=0; i < id.length(); i++) {
+            if(chars[i] == '[') {
+                isOpenToWrite = !isOpenToWrite;
+            } else if(chars[i] == ']') {
+                isOpenToWrite = false;
+            } else if(chars[i] == '.') {
+                isOpenToWrite = !isOpenToWrite;
+            }
+
+            if(isOpenToWrite == true) {
+                strToFind += chars[i];
+            }
+
+            if((isOpenToWrite == false && !strToFind.isEmpty()) || (isOpenToWrite == true && i == id.length()-1)) {
+                JsonElement jsonElement = new JsonParser().parse(jsonToFind);
+                logger.debug("sip " + strToFind);
+                if(strToFind.contains("[")) {
+                    strToFind = strToFind.replace("[", "");
+                    JsonArray jsonArray = jsonElement.getAsJsonArray();
+                    jsonToFind = jsonArray.get(Integer.parseInt(strToFind)).getAsString();
+                    valueId = jsonToFind;
+                } else {
+                    JsonObject jsonObject = jsonElement.getAsJsonObject();
+                    jsonToFind = jsonObject.get(strToFind).getAsString();
+                    valueId = jsonToFind;
+                }
+                strToFind = "";
+            }
+        }
+
+        logger.debug("===> ini adalah valueId: " + valueId);
+
         String key = pjp.getTarget().getClass().getName() + ":" + getMethod(pjp).getName() + ":updateType_" + updateType + ":args_" + paramsKey;
         return key;
     }
 
     public static void renewCache(ProceedingJoinPoint pjp) throws Throwable {
-        String key = getKey(pjp);
-        List<String> keys = findKeys(key);
+        List<String> keys = findKeys(pjp);
 
         logger.debug("==> renewCache() key size: " + keys.size());
         if(keys.size() > 0) {
@@ -184,7 +241,7 @@ public class RedisCacheService {
 
     private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp) throws Throwable {
         logger.debug("it's time to renew cache...");
-        createCache(pjp.proceed(), getKey(pjp), getTtl(pjp), getConditionRegex(pjp), oldKeys);
+        createCache(pjp.proceed(), pjp, getTtl(pjp), getConditionRegex(pjp), oldKeys);
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
@@ -198,7 +255,8 @@ public class RedisCacheService {
         return false;
     }
 
-    private static void createCache(Object proceed, String key, int ttl, String conditionRegex, List<String> oldKeys) throws Throwable {
+    private static void createCache(Object proceed, ProceedingJoinPoint pjp, int ttl, String conditionRegex, List<String> oldKeys) throws Throwable {
+        String key = getKey(pjp);
         ObjectMapper objectMapper = new ObjectMapper();
         key += ":return_" + objectMapper.writeValueAsString(proceed);
         logger.debug("key : " + key);
