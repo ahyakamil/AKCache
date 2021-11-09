@@ -254,7 +254,11 @@ public class RedisCacheService {
         List<String> keys = findKeys(pjp);
 
         logger.debug("==> renewCache() key size: " + keys.size());
-        if(keys.size() > 0) {
+        String onloadingKey = "onloading_" + getKey(pjp);
+        String isOnloading = REDIS_SYNC.hget(onloadingKey, "value");
+        if(isOnloading == null) {
+            REDIS_SYNC.hset(onloadingKey, "value", "ok");
+            REDIS_SYNC.expire(onloadingKey, 10);
             if(getUpdateType(pjp).equals(UpdateType.FETCH)) {
                 doRenewCache(keys, pjp);
             } else if(getUpdateType(pjp).equals(UpdateType.SMART)) {
@@ -262,6 +266,8 @@ public class RedisCacheService {
                     doRenewCache(keys, pjp);
                 }
             }
+        } else {
+            logger.debug("process still loading...");
         }
     }
 
@@ -289,11 +295,11 @@ public class RedisCacheService {
         Pattern pattern = Pattern.compile(conditionRegex);
         Matcher matcher = pattern.matcher(key);
         if(matcher.find()) {
-            doCreate(oldKeys, key, proceed, ttl);
+            doCreate(oldKeys, key, proceed, ttl, pjp);
         }
     }
 
-    private static void doCreate(List<String> oldKeys, String key, Object proceed, int ttl) throws JsonProcessingException {
+    private static void doCreate(List<String> oldKeys, String key, Object proceed, int ttl, ProceedingJoinPoint pjp) throws JsonProcessingException {
         ObjectMapper objectMapper = new ObjectMapper();
         logger.debug("serializing obj...");
         logger.debug("key bytes : " + key.getBytes());
@@ -310,5 +316,7 @@ public class RedisCacheService {
                 }
             }
         }
+        String onloadingKey = "onloading_" + getKey(pjp);
+        REDIS_SYNC.del(onloadingKey);
     }
 }
