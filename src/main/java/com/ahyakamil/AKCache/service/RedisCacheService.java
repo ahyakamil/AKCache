@@ -122,11 +122,6 @@ public class RedisCacheService {
             return deSerialize;
         } else {
             Object proceed = pjp.proceed();
-            try {
-                createCache(proceed, pjp, ttl, conditionRegex, null);
-            } catch (Throwable throwable) {
-                logger.debug(throwable.getMessage());
-            }
             return proceed;
         }
     }
