@@ -99,6 +99,10 @@ public class RedisCacheService {
         return getMethod(pjp).getAnnotation(AKCache.class).updateType();
     }
 
+    private static String getKeyExcludes(ProceedingJoinPoint pjp) {
+        return getMethod(pjp).getAnnotation(AKCache.class).keyExcludes();
+    }
+
     private static int getTtl(ProceedingJoinPoint pjp) {
         return getMethod(pjp).getAnnotation(AKCache.class).ttl();
     }
@@ -167,6 +171,14 @@ public class RedisCacheService {
         Gson gson = new Gson();
         paramsKey += gson.toJson(args);
         UpdateType updateType = getUpdateType(pjp);
+        String[] keyExcludes = getKeyExcludes(pjp).split(",");
+        for(String keyExclude: keyExcludes) {
+            paramsKey = paramsKey.replaceAll("\",", "\",\n");
+            paramsKey = paramsKey.replaceAll("},", "},\n");
+            paramsKey = paramsKey.replaceAll("],", "],\n");
+            paramsKey = paramsKey.replaceAll("(,\\s*\\\"" + keyExclude + "\\\" *: *\\\".*\\\"|(?=\\s*\\}))|(\\s*\\\""+ keyExclude + "\\\" *: *\\\".*\\\"(,|(?=\\s*\\})))", "");
+            paramsKey = paramsKey.replaceAll("\n", "");
+        }
         String key = pjp.getTarget().getClass().getName() + ":" + getMethod(pjp).getName() + ":updateType_" + updateType + ":args_" + paramsKey;
         return key;
     }

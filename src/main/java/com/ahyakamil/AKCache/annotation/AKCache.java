@@ -15,4 +15,5 @@ public @interface AKCache {
     int ttl() default 86400;
     String conditionRegex() default ".*";
     String id() default "";
+    String keyExcludes() default "";
 }
