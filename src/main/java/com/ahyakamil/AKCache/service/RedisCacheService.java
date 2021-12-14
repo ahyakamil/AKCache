@@ -107,6 +107,10 @@ public class RedisCacheService {
         return getMethod(pjp).getAnnotation(AKCache.class).ttl();
     }
 
+    private static int getDelay(ProceedingJoinPoint pjp) {
+        return getMethod(pjp).getAnnotation(AKCache.class).delay();
+    }
+
     private static String getConditionRegex(ProceedingJoinPoint pjp) {
         return getMethod(pjp).getAnnotation(AKCache.class).conditionRegex();
     }
@@ -125,8 +129,7 @@ public class RedisCacheService {
             Object deSerialize = objectMapper.readValue(objValue, returnedClass);
             return deSerialize;
         } else {
-            Object proceed = pjp.proceed();
-            return proceed;
+            return pjp.proceed();
         }
     }
 
@@ -270,12 +273,12 @@ public class RedisCacheService {
         String isOnloading = REDIS_SYNC.hget(onloadingKey, "value");
         if(isOnloading == null) {
             REDIS_SYNC.hset(onloadingKey, "value", "ok");
-            REDIS_SYNC.expire(onloadingKey, 10);
+            REDIS_SYNC.expire(onloadingKey, getDelay(pjp) == 0 ? 10 : getDelay(pjp));
             if(getUpdateType(pjp).equals(UpdateType.FETCH)) {
-                doRenewCache(keys, pjp);
+                doRenewCache(keys, pjp, pjp.proceed());
             } else if(getUpdateType(pjp).equals(UpdateType.SMART)) {
                 if(isTimeToRenewCache(getTtl(pjp), REDIS_SYNC.ttl(keys.iterator().next()))) {
-                    doRenewCache(keys, pjp);
+                    doRenewCache(keys, pjp, pjp.proceed());
                 }
             }
         } else {
@@ -283,9 +286,9 @@ public class RedisCacheService {
         }
     }
 
-    private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp) throws Throwable {
+    private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp, Object proceed) throws Throwable {
         logger.debug("it's time to renew cache...");
-        createCache(pjp.proceed(), pjp, getTtl(pjp), getConditionRegex(pjp), oldKeys);
+        createCache(proceed, pjp, getTtl(pjp), getConditionRegex(pjp), oldKeys);
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
@@ -328,7 +331,11 @@ public class RedisCacheService {
                 }
             }
         }
-        String onloadingKey = "onloading_" + getKey(pjp);
-        REDIS_SYNC.del(onloadingKey);
+
+        //if default getDelay == 0, it will delete onloading key and have effect no delayed after process done.
+        if(getDelay(pjp) == 0) {
+            String onloadingKey = "onloading_" + getKey(pjp);
+            REDIS_SYNC.del(onloadingKey);
+        }
     }
 }
