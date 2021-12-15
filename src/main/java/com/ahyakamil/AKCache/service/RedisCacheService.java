@@ -176,10 +176,8 @@ public class RedisCacheService {
         UpdateType updateType = getUpdateType(pjp);
         String[] keyExcludes = getKeyExcludes(pjp).split(",");
         for(String keyExclude: keyExcludes) {
-            paramsKey = paramsKey.replaceAll("\",", "\",\n");
-            paramsKey = paramsKey.replaceAll("},", "},\n");
-            paramsKey = paramsKey.replaceAll("],", "],\n");
-            paramsKey = paramsKey.replaceAll("(,\\s*\\\"" + keyExclude + "\\\" *: *\\\".*\\\"|(?=\\s*\\}))|(\\s*\\\""+ keyExclude + "\\\" *: *\\\".*\\\"(,|(?=\\s*\\})))", "");
+            paramsKey = paramsKey.replaceAll(",", ",\n");
+            paramsKey = paramsKey.replaceAll("(\\s*\\\""+ keyExclude + "\\\" *: *.*(,|(?=\\s*\\})))", "");
             paramsKey = paramsKey.replaceAll("\n", "");
         }
         String key = pjp.getTarget().getClass().getName() + ":" + getMethod(pjp).getName() + ":updateType_" + updateType + ":args_" + paramsKey;
