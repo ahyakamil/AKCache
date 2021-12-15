@@ -271,7 +271,7 @@ public class RedisCacheService {
         String isOnloading = REDIS_SYNC.hget(onloadingKey, "value");
         if(isOnloading == null) {
             REDIS_SYNC.hset(onloadingKey, "value", "ok");
-            REDIS_SYNC.expire(onloadingKey, getDelay(pjp) == 0 ? 10 : getDelay(pjp));
+            REDIS_SYNC.expire(onloadingKey, getDelay(pjp) == 0 ? 1000 : getDelay(pjp));
             if(getUpdateType(pjp).equals(UpdateType.FETCH)) {
                 doRenewCache(keys, pjp, pjp.proceed());
             } else if(getUpdateType(pjp).equals(UpdateType.SMART)) {
@@ -307,8 +307,25 @@ public class RedisCacheService {
         logger.debug("key : " + key);
         Pattern pattern = Pattern.compile(conditionRegex);
         Matcher matcher = pattern.matcher(key);
+        /**
+         * if condition is meet then do create cache
+         * else delete onloading key
+         */
         if(matcher.find()) {
             doCreate(oldKeys, key, proceed, ttl, pjp);
+        } else {
+            String onloadingKey = "onloading_" + getKey(pjp);
+            REDIS_SYNC.del(onloadingKey);
+        }
+
+        /**
+         * if getDelay value is default (0),
+         * it will delete onloading key and have effect no delayed
+         * after process is done
+         */
+        if(getDelay(pjp) == 0) {
+            String onloadingKey = "onloading_" + getKey(pjp);
+            REDIS_SYNC.del(onloadingKey);
         }
     }
 
@@ -328,12 +345,6 @@ public class RedisCacheService {
                     REDIS_SYNC.del(oldKey);
                 }
             }
-        }
-
-        //if default getDelay == 0, it will delete onloading key and have effect no delayed after process done.
-        if(getDelay(pjp) == 0) {
-            String onloadingKey = "onloading_" + getKey(pjp);
-            REDIS_SYNC.del(onloadingKey);
         }
     }
 }
