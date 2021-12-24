@@ -129,7 +129,7 @@ public class RedisCacheService {
             Object deSerialize = objectMapper.readValue(objValue, returnedClass);
             return deSerialize;
         } else {
-            return pjp.proceed();
+            return renewCache(pjp);
         }
     }
 
@@ -263,8 +263,9 @@ public class RedisCacheService {
         return value;
     }
 
-    public static void renewCache(ProceedingJoinPoint pjp) throws Throwable {
+    public static Object renewCache(ProceedingJoinPoint pjp) throws Throwable {
         List<String> keys = findKeys(pjp);
+        Object proceed = null;
 
         logger.debug("==> renewCache() key size: " + keys.size());
         String onloadingKey = "onloading_" + getKey(pjp);
@@ -273,15 +274,23 @@ public class RedisCacheService {
             REDIS_SYNC.hset(onloadingKey, "value", "ok");
             REDIS_SYNC.expire(onloadingKey, getDelay(pjp) == 0 ? 1000 : getDelay(pjp));
             if(getUpdateType(pjp).equals(UpdateType.FETCH)) {
-                doRenewCache(keys, pjp, pjp.proceed());
+                proceed = pjp.proceed();
+                doRenewCache(keys, pjp, proceed);
             } else if(getUpdateType(pjp).equals(UpdateType.SMART)) {
                 if(isTimeToRenewCache(getTtl(pjp), REDIS_SYNC.ttl(keys.iterator().next()))) {
-                    doRenewCache(keys, pjp, pjp.proceed());
+                    proceed = pjp.proceed();
+                    doRenewCache(keys, pjp, proceed);
                 }
             }
         } else {
-            logger.debug("process still loading...");
+            logger.info("process still loading...");
         }
+        if(proceed != null) {
+            logger.info(proceed.toString());
+        } else {
+            logger.info(null);
+        }
+        return proceed;
     }
 
     private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp, Object proceed) throws Throwable {
