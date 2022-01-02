@@ -9,6 +9,6 @@ import org.aspectj.lang.annotation.Aspect;
 public class AspectConfig {
     @Around("execution(* *(..)) && @annotation(com.ahyakamil.AKCache.annotation.AKCache) || @annotation(com.ahyakamil.AKCache.annotation.AKCacheUpdate)")
     public Object setListener(ProceedingJoinPoint pjp) throws Throwable {
-        return AKCacheSetup.setListener(pjp);
+        return AKCacheSetup.getCache(pjp);
     }
 }

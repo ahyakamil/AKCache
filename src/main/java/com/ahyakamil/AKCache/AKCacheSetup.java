@@ -8,8 +8,8 @@ public class AKCacheSetup {
         RedisCacheService.setupConnection(host, port, username, password, maxTotalPool, maxIdlePool, minIdlePool, isUsingPool);
     }
 
-    public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
-        return RedisCacheService.setListener(pjp);
+    public static Object getCache(ProceedingJoinPoint pjp) throws Throwable {
+        return RedisCacheService.getCache(pjp);
     }
 
     public static void renewCache(ProceedingJoinPoint pjp) throws Throwable {

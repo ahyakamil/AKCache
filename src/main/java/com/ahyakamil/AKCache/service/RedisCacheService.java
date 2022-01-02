@@ -75,7 +75,7 @@ public class RedisCacheService {
         logger.debug("successfully connect to redis...");
     }
 
-    public static Object setListener(ProceedingJoinPoint pjp) throws Throwable {
+    public static Object getCache(ProceedingJoinPoint pjp) throws Throwable {
         if(getMethod(pjp).getAnnotation(AKCacheUpdate.class) != null) {
             return null;
         } else if(getMethod(pjp).getAnnotation(AKCache.class) != null) {
@@ -129,7 +129,7 @@ public class RedisCacheService {
             Object deSerialize = objectMapper.readValue(objValue, returnedClass);
             return deSerialize;
         } else {
-            return renewCache(pjp);
+            return null;
         }
     }
 
@@ -139,10 +139,10 @@ public class RedisCacheService {
         String keyPattern = "";
         if(id.trim().isEmpty()) {
             findKey = getKey(pjp);
-            keyPattern = escapeMetaCharacters(findKey) + ":return*";
+            keyPattern = escapeMetaCharacters(findKey);
         } else {
             findKey = getKeyWithId(pjp);
-            keyPattern = findKey + ":return*";
+            keyPattern = findKey;
         }
         logger.debug("key to find: " + keyPattern);
         ScanArgs scanArgs = new ScanArgs();
@@ -275,11 +275,11 @@ public class RedisCacheService {
             REDIS_SYNC.expire(onloadingKey, getDelay(pjp) == 0 ? 1000 : getDelay(pjp));
             if(getUpdateType(pjp).equals(UpdateType.FETCH)) {
                 proceed = pjp.proceed();
-                doRenewCache(keys, pjp, proceed);
+                doRenewCache(pjp, proceed);
             } else if(getUpdateType(pjp).equals(UpdateType.SMART)) {
                 if(isTimeToRenewCache(getTtl(pjp), REDIS_SYNC.ttl(keys.iterator().next()))) {
                     proceed = pjp.proceed();
-                    doRenewCache(keys, pjp, proceed);
+                    doRenewCache(pjp, proceed);
                 }
             }
         } else {
@@ -293,9 +293,9 @@ public class RedisCacheService {
         return proceed;
     }
 
-    private static void doRenewCache(List<String> oldKeys, ProceedingJoinPoint pjp, Object proceed) throws Throwable {
+    private static void doRenewCache(ProceedingJoinPoint pjp, Object proceed) throws Throwable {
         logger.debug("it's time to renew cache...");
-        createCache(proceed, pjp, getTtl(pjp), getConditionRegex(pjp), oldKeys);
+        createCache(proceed, pjp, getTtl(pjp), getConditionRegex(pjp));
     }
 
     private static boolean isTimeToRenewCache(int ttl, Long currentTtl) {
@@ -309,19 +309,19 @@ public class RedisCacheService {
         return false;
     }
 
-    private static void createCache(Object proceed, ProceedingJoinPoint pjp, int ttl, String conditionRegex, List<String> oldKeys) throws Throwable {
+    private static void createCache(Object proceed, ProceedingJoinPoint pjp, int ttl, String conditionRegex) throws Throwable {
         String key = getKey(pjp);
         ObjectMapper objectMapper = new ObjectMapper();
-        key += ":return_" + objectMapper.writeValueAsString(proceed);
-        logger.debug("key : " + key);
+        String matcherString = key + ":return_" + objectMapper.writeValueAsString(proceed);
+        logger.debug("matcherString : " + key);
         Pattern pattern = Pattern.compile(conditionRegex);
-        Matcher matcher = pattern.matcher(key);
+        Matcher matcher = pattern.matcher(matcherString);
         /**
          * if condition is meet then do create cache
          * else delete onloading key
          */
         if(matcher.find()) {
-            doCreate(oldKeys, key, proceed, ttl, pjp);
+            doCreate(key, proceed, ttl, pjp);
         } else {
             String onloadingKey = "onloading_" + getKey(pjp);
             REDIS_SYNC.del(onloadingKey);
@@ -338,7 +338,7 @@ public class RedisCacheService {
         }
     }
 
-    private static void doCreate(List<String> oldKeys, String key, Object proceed, int ttl, ProceedingJoinPoint pjp) throws JsonProcessingException {
+    private static void doCreate(String key, Object proceed, int ttl, ProceedingJoinPoint pjp) throws JsonProcessingException {
         ObjectMapper objectMapper = new ObjectMapper();
         logger.debug("serializing obj...");
         logger.debug("key bytes : " + key.getBytes());
@@ -346,14 +346,5 @@ public class RedisCacheService {
         REDIS_SYNC.hset(key, "objValue", objectMapper.writeValueAsString(forceObjToSerialize.getValueObj()));
         REDIS_SYNC.expire(key, ttl);
         logger.debug("successfully create cache");
-
-        //remove unused keys
-        if (oldKeys != null && oldKeys.size() > 0) {
-            for (String oldKey : oldKeys) {
-                if (!oldKey.equals(key)) {
-                    REDIS_SYNC.del(oldKey);
-                }
-            }
-        }
     }
 }
