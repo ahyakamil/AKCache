@@ -313,7 +313,6 @@ public class RedisCacheService {
         String key = getKey(pjp);
         ObjectMapper objectMapper = new ObjectMapper();
         String matcherString = key + ":return_" + objectMapper.writeValueAsString(proceed);
-        logger.debug("matcherString : " + key);
         Pattern pattern = Pattern.compile(conditionRegex);
         Matcher matcher = pattern.matcher(matcherString);
         /**
