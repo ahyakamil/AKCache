@@ -117,55 +117,18 @@ public class RedisCacheService {
 
     private static Object getData(ProceedingJoinPoint pjp, Method method, Class returnedClass) throws Throwable {
         ObjectMapper objectMapper = new ObjectMapper();
-        int ttl = getTtl(pjp);
-        String conditionRegex = method.getAnnotation(AKCache.class).conditionRegex();
-
-        List<String> keys = findKeys(pjp);
-        if (keys.size() > 0) {
-            String foundedKey = keys.get(0);
-            String objValue = REDIS_SYNC.hget(foundedKey, "objValue");
+        String key = getKey(pjp);
+        logger.debug("search key : " + key);
+        String objValue = REDIS_SYNC.hget(key, "objValue");
+        if (objValue != null) {
             logger.debug("key exist, get from cache");
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             Object deSerialize = objectMapper.readValue(objValue, returnedClass);
             return deSerialize;
         } else {
+            logger.debug("key not found!");
             return null;
         }
-    }
-
-    private static List<String> findKeys(ProceedingJoinPoint pjp) throws JsonProcessingException {
-        String id = getId(pjp);
-        String findKey = "";
-        String keyPattern = "";
-        if(id.trim().isEmpty()) {
-            findKey = getKey(pjp);
-            keyPattern = escapeMetaCharacters(findKey);
-        } else {
-            findKey = getKeyWithId(pjp);
-            keyPattern = findKey;
-        }
-        logger.debug("key to find: " + keyPattern);
-        ScanArgs scanArgs = new ScanArgs();
-        scanArgs.limit(10000);
-        scanArgs.match(keyPattern);
-        List<String> keys =  new ArrayList<>();
-        KeyScanCursor keyScanCursor = REDIS_SYNC.scan(scanArgs);
-        List<String> foundedKeys = keyScanCursor.getKeys();
-        keys.addAll(foundedKeys);
-        logger.debug("===> founded keys: " + keys.size());
-        if(keys.size() > 0) {
-            keyScanCursor.setFinished(true);
-        }
-        while (!keyScanCursor.isFinished()) {
-            foundedKeys = keyScanCursor.getKeys();
-            keys.addAll(foundedKeys);
-            keyScanCursor = REDIS_SYNC.scan(keyScanCursor, scanArgs);
-            logger.debug("===> cursor: " + keyScanCursor.getCursor());
-            if(keys.size() > 0) {
-                keyScanCursor.setFinished(true);
-            }
-        }
-        return keys;
     }
 
     private static String getKey(ProceedingJoinPoint pjp) throws JsonProcessingException {
@@ -264,10 +227,7 @@ public class RedisCacheService {
     }
 
     public static Object renewCache(ProceedingJoinPoint pjp) throws Throwable {
-        List<String> keys = findKeys(pjp);
         Object proceed = null;
-
-        logger.debug("==> renewCache() key size: " + keys.size());
         String onloadingKey = "onloading_" + getKey(pjp);
         String isOnloading = REDIS_SYNC.hget(onloadingKey, "value");
         if(isOnloading == null) {
@@ -276,11 +236,6 @@ public class RedisCacheService {
             if(getUpdateType(pjp).equals(UpdateType.FETCH)) {
                 proceed = pjp.proceed();
                 doRenewCache(pjp, proceed);
-            } else if(getUpdateType(pjp).equals(UpdateType.SMART)) {
-                if(isTimeToRenewCache(getTtl(pjp), REDIS_SYNC.ttl(keys.iterator().next()))) {
-                    proceed = pjp.proceed();
-                    doRenewCache(pjp, proceed);
-                }
             }
         } else {
             logger.info("process still loading...");
