@@ -1,41 +1,28 @@
 package com.ahyakamil.AKCache.service;
 
-import com.ahyakamil.AKCache.AKCacheSetup;
-import com.ahyakamil.AKCache.annotation.AKCache;
+import com.ahyakamil.AKCache.AKCacheService;
 import com.ahyakamil.AKCache.annotation.AKCacheUpdate;
 import com.ahyakamil.AKCache.constant.AKConstants;
 import com.ahyakamil.AKCache.constant.UpdateType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.*;
-import io.lettuce.core.KeyScanCursor;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
-import io.lettuce.core.ScanArgs;
 import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.api.sync.RedisCommands;
-import io.lettuce.core.protocol.RedisCommand;
-import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.ahyakamil.AKCache.util.AKUtils.escapeMetaCharacters;
-
 public class RedisCacheService {
-    private static Logger logger = LoggerFactory.getLogger(AKCacheSetup.class);
+    private static Logger logger = LoggerFactory.getLogger(AKCacheService.class);
     private static String hostStatic;
     private static int portStatic;
     private static String usernameStatic;
@@ -78,8 +65,8 @@ public class RedisCacheService {
     public static Object getCache(ProceedingJoinPoint pjp) throws Throwable {
         if(getMethod(pjp).getAnnotation(AKCacheUpdate.class) != null) {
             return null;
-        } else if(getMethod(pjp).getAnnotation(AKCache.class) != null) {
-            Class returnedClass = getMethod(pjp).getAnnotation(AKCache.class).serializeClass();
+        } else if(getMethod(pjp).getAnnotation(com.ahyakamil.AKCache.annotation.AKCache.class) != null) {
+            Class returnedClass = getMethod(pjp).getAnnotation(com.ahyakamil.AKCache.annotation.AKCache.class).serializeClass();
             return getData(pjp, getMethod(pjp), returnedClass);
         }
         return null;
@@ -92,27 +79,27 @@ public class RedisCacheService {
     }
 
     private static String getId(ProceedingJoinPoint pjp) {
-        return getMethod(pjp).getAnnotation(AKCache.class).id();
+        return getMethod(pjp).getAnnotation(com.ahyakamil.AKCache.annotation.AKCache.class).id();
     }
 
     private static UpdateType getUpdateType(ProceedingJoinPoint pjp) {
-        return getMethod(pjp).getAnnotation(AKCache.class).updateType();
+        return getMethod(pjp).getAnnotation(com.ahyakamil.AKCache.annotation.AKCache.class).updateType();
     }
 
     private static String getKeyExcludes(ProceedingJoinPoint pjp) {
-        return getMethod(pjp).getAnnotation(AKCache.class).keyExcludes();
+        return getMethod(pjp).getAnnotation(com.ahyakamil.AKCache.annotation.AKCache.class).keyExcludes();
     }
 
     private static int getTtl(ProceedingJoinPoint pjp) {
-        return getMethod(pjp).getAnnotation(AKCache.class).ttl();
+        return getMethod(pjp).getAnnotation(com.ahyakamil.AKCache.annotation.AKCache.class).ttl();
     }
 
     private static int getDelay(ProceedingJoinPoint pjp) {
-        return getMethod(pjp).getAnnotation(AKCache.class).delay();
+        return getMethod(pjp).getAnnotation(com.ahyakamil.AKCache.annotation.AKCache.class).delay();
     }
 
     private static String getConditionRegex(ProceedingJoinPoint pjp) {
-        return getMethod(pjp).getAnnotation(AKCache.class).conditionRegex();
+        return getMethod(pjp).getAnnotation(com.ahyakamil.AKCache.annotation.AKCache.class).conditionRegex();
     }
 
     private static Object getData(ProceedingJoinPoint pjp, Method method, Class returnedClass) throws Throwable {
@@ -300,5 +287,15 @@ public class RedisCacheService {
         REDIS_SYNC.hset(key, "objValue", objectMapper.writeValueAsString(forceObjToSerialize.getValueObj()));
         REDIS_SYNC.expire(key, ttl);
         logger.debug("successfully create cache");
+    }
+
+    public static void deleteCache(ProceedingJoinPoint pjp) throws JsonProcessingException {
+        String key = getKey(pjp);
+        logger.debug("===> key to delete: " + key);
+        REDIS_SYNC.del(key);
+    }
+
+    public static RedisCommands nativeQuery() throws JsonProcessingException {
+        return REDIS_SYNC;
     }
 }
