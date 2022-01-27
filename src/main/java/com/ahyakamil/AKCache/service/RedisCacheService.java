@@ -291,7 +291,9 @@ public class RedisCacheService {
 
     public static void deleteCache(ProceedingJoinPoint pjp) throws JsonProcessingException {
         String key = getKey(pjp);
+        String onloadingkey = "onloading_" + key;
         logger.debug("===> key to delete: " + key);
+        REDIS_SYNC.del(onloadingkey);
         REDIS_SYNC.del(key);
     }
 
