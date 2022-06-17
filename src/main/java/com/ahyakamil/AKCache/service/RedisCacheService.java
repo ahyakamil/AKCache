@@ -113,8 +113,23 @@ public class RedisCacheService {
             Object deSerialize = objectMapper.readValue(objValue, returnedClass);
             return deSerialize;
         } else {
-            logger.debug("key not found!");
-            return null;
+            String onloadingKey = "onloading_" + key;
+            String isOnloading = REDIS_SYNC.hget(onloadingKey, "value");
+            if(isOnloading != null) {
+                for(int retry = 0; retry < 10; retry++) {
+                    String recheckObjValue = REDIS_SYNC.hget(key, "objValue");
+                    if (recheckObjValue != null) {
+                        logger.debug("key exist after wait loading, get from cache");
+                        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                        Object deSerialize = objectMapper.readValue(recheckObjValue, returnedClass);
+                        return deSerialize;
+                    }
+                    Thread.sleep(100);
+                }
+            } else {
+                logger.debug("key not found!");
+            }
+            return pjp.proceed();
         }
     }
 
